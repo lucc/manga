@@ -17,7 +17,10 @@ import urllib.request
 from bs4 import BeautifulSoup
 
 # constants {{{1
+MAIOR_VERSION = 0
+MINOR_VERSION = 2
 PROG = os.path.basename(sys.argv[0])
+VERSION_STRING = PROG + ' ' + str(MAIOR_VERSION) + '.' + str(MINOR_VERSION)
 
 # variables {{{1
 quiet = True
@@ -844,6 +847,8 @@ if __name__ == '__main__': #{{{1
             help='visit all directorys in the manga dir and resume there')
 
     #general group {{{3
+    parser.add_argument('-V', '--version', action='version',
+            version=VERSION_STRING, help='print version information')
     #parser.add_argument('url', nargs='+')
     #parser.add_argument('url', nargs='?')
     parser.add_argument('name', nargs='?', metavar='url/name')
