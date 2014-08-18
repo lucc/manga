@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 # imports
-import argparse
 import datetime
 import inspect
 import logging
@@ -610,6 +609,67 @@ class Mangafox(SiteHandler):
 
 if __name__ == '__main__':
 
+    def parse_comand_line():
+        '''Parse the command line and return the arguments object returned by
+        the parser.'''
+        import argparse
+        parser = argparse.ArgumentParser(prog=PROG,
+                description="Download manga from some websites.")
+        # output group
+        output = parser.add_argument_group(title='Output options')
+        output.add_argument('-l', '--loglevel',
+                type=lambda x: logging_levels[x],
+                default=logging_levels['NORMAL'],
+                choices=logging_levels.keys(),
+                help='specify the logging level')
+        output.add_argument('-x', '--debug', dest='loglevel',
+                action='store_const', const=logging.DEBUG,
+                help='debuging output')
+        output.add_argument('-v', '--verbose', dest='loglevel',
+                action='store_const',
+                const=logging.INFO, help='verbose output')
+        output.add_argument('-q', '--quiet', dest='loglevel',
+                action='store_const',
+                const=logging.CRITICAL, help='supress output')
+        # general group
+        general = parser.add_argument_group(title='General options')
+        general.add_argument('-b', '--background', action='store_true',
+                help='fork to background')
+        # can we hand a function to the parser to check the directory?
+        general.add_argument('-d', '--directory', metavar='DIR', default='.',
+                help='the directory to work in')
+        general.add_argument('-f', '--logfile', metavar='LOG',
+                default='manga.log',
+                help='the filename of the logfile to use')
+        general.add_argument('-m', '--load-missing', action='store_true',
+                dest='missing',
+                help='Load all files which are stated in the logfile but ' +
+                'are missing on disk.')
+        # unimplemented group
+        unimplemented = parser.add_argument_group(
+                'These are not yet implemented')
+        # the idea for 'auto' was to find the manga name and the directory
+        # automatically.
+        unimplemented.add_argument('-a', '--auto', action='store_true',
+                default=True, help='do everything automatically')
+        # or use the logfile from within for downloading.
+        ## idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
+        unimplemented.add_argument('-A', '--archive',
+                help='display the logfile from within an archive')
+        unimplemented.add_argument('--view', help='create a html page')
+        unimplemented.add_argument('-r', '--resume', action='store_true',
+                help='resume from a logfile')
+        unimplemented.add_argument('-R', '--resume-all', action='store_true',
+                help='visit all directorys in the manga dir and resume there')
+        #general group
+        parser.add_argument('-V', '--version', action='version',
+                version=VERSION_STRING, help='print version information')
+        #parser.add_argument('url', nargs='+')
+        #parser.add_argument('url', nargs='?')
+        parser.add_argument('name', nargs='?', metavar='url/name')
+        return parser.parse_args()
+
+
     def prepare_output_dir(directory, string):
         # or should we used a named argument and detect the manga name
         # automatically if it is not given.
@@ -671,52 +731,53 @@ if __name__ == '__main__':
                 logging.critical('The fucking ERROR!')
 
 
-    def parse_args_version_1():
-        args.directory = prepare_output_dir(args.directory, args.url)
+    def parse_args_version_1(parser, directory=None, url=None, resume=None, logfile=None):
+        directory = prepare_output_dir(directory, url)
         #if args.auto:
         #    automatic(args.string)
         #el
-        if args.resume and args.url is not None:
+        if resume and url is not None:
             parser.error('You can only use -r or give an url.')
-        elif not args.resume and args.url is None:
+        elif not resume and url is None:
             parser.error('You must specify -r or an url.')
         logging.info(args)
         # running
-        if args.resume:
-            resume(args.directory, args.logfile)
+        if resume:
+            resume(directory, logfile)
         else:
-            cls = find_class_from_url(args.url)
-            worker = cls(args.directory, args.logfile)
-            #worker = Mangareader(args.directory, args.logfile)
-            #worker.run(args.url)
-            worker.start_at(args.url)
+            cls = find_class_from_url(url)
+            worker = cls(directory, logfile)
+            #worker = Mangareader(directory, logfile)
+            #worker.run(url)
+            worker.start_at(url)
 
 
-    def parse_args_version_2():
-        args.directory = prepare_output_dir(args.directory, args.name)
+    def parse_args_version_2(parser, directory=None, name=None, resume=None,
+            logfile=None):
+        directory = prepare_output_dir(directory, name)
         #if args.auto:
         #    automatic(args.string)
         #el
-        if args.resume and args.name is not None:
+        if resume and name is not None:
             parser.error('You can only use -r or give an url.')
-        elif not args.resume and args.name is None:
+        elif not resume and name is None:
             parser.error('You must specify -r or an url.')
         logging.debug(args)
         # running
-        if args.resume:
-            resume(args.directory, args.logfile)
+        if resume:
+            resume(directory, logfile)
         else:
-            cls = find_class_from_url(args.name)
-            worker = cls(args.directory, args.logfile)
-            #worker = Mangareader(args.directory, args.logfile)
-            #worker.run(args.url)
-            worker.start_at(args.name)
+            cls = find_class_from_url(name)
+            worker = cls(directory, logfile)
+            #worker = Mangareader(directory, logfile)
+            #worker.run(url)
+            worker.start_at(name)
 
 
-    def parse_args_version_3():
+    def parse_args_version_3(parser, directory=None, name=None, resume=None,
+            logfile=None, string=None, url=None):
         # Define the base directory for the directory to load to.
         mangadir = '.'
-        directory = args.directory
         if not os.path.sep in directory:
             mangadir = os.getenv("MANGADIR")
             if mangadir is None or mangadir == "":
@@ -725,7 +786,7 @@ if __name__ == '__main__':
         # Find the actual directory to work in.
         if directory == '.':
             # There was no directory given on command line.  Try to find the
-            # directory in args.name.
+            # directory in name.
             pass
         else:
             # We got a directory from the command line.
@@ -738,52 +799,53 @@ if __name__ == '__main__':
             os.mkdir(directory)
         os.chdir(directory)
         logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
-        args.directory = prepare_output_dir(args.directory, args.string)
+        directory = prepare_output_dir(directory, string)
         #if args.auto:
-        #    automatic(args.string)
+        #    automatic(string)
         #el
-        if args.resume and args.url is not None:
+        if resume and url is not None:
             parser.error('You can only use -r or give an url.')
-        elif not args.resume and args.url is None:
+        elif not resume and url is None:
             parser.error('You must specify -r or an url.')
         logging.info(args)
         # running
-        if args.resume:
-            resume(args.directory, args.logfile)
+        if resume:
+            resume(directory, logfile)
         else:
-            cls = find_class_from_url(args.url)
-            worker = cls(args.directory, args.logfile)
-            #worker = Mangareader(args.directory, args.logfile)
-            #worker.run(args.url)
-            worker.start_at(args.url)
+            cls = find_class_from_url(url)
+            worker = cls(directory, logfile)
+            #worker = Mangareader(directory, logfile)
+            #worker.run(url)
+            worker.start_at(url)
 
 
-    def parse_args_version_4():
-        args.directory = prepare_output_dir(args.directory, args.name)
+    def parse_args_version_4(parser, directory=None, name=None, resume=None,
+            logfile=None, string=None, url=None, resume_all=None, missing=None):
+        directory = prepare_output_dir(directory, name)
         #if args.auto:
-        #    automatic(args.string)
+        #    automatic(string)
         #el
-        if args.resume_all:
+        if resume_all:
             resume_all()
             sys.exit()
-        elif args.resume and (args.name is not None or args.missing):
+        elif resume and (name is not None or missing):
             parser.error('You can only use -r or -m or give an url.')
-        elif not args.resume and args.name is None and not args.missing:
+        elif not resume and name is None and not missing:
             parser.error('You must specify -r or -m or an url.')
         logging.debug(args)
         # running
-        if args.resume:
-            resume(args.directory, args.logfile)
-            logging.info('args.missing was %s', args.missing)
-        elif args.missing:
-            download_missing(args.directory, args.logfile)
-            logging.info('args.resume was %s', args.resume)
+        if resume:
+            resume(directory, logfile)
+            logging.info('missing was %s', missing)
+        elif missing:
+            download_missing(directory, logfile)
+            logging.info('resume was %s', resume)
         else:
-            cls = find_class_from_url(args.name)
-            worker = cls(args.directory, args.logfile)
-            #worker = Mangareader(args.directory, args.logfile)
-            #worker.run(args.url)
-            worker.start_at(args.name)
+            cls = find_class_from_url(name)
+            worker = cls(directory, logfile)
+            #worker = Mangareader(directory, logfile)
+            #worker.run(url)
+            worker.start_at(name)
 
 
     def join_threads():
@@ -804,67 +866,8 @@ if __name__ == '__main__':
         pass
 
 
+    args, parser = parse_comand_line()
     # defining the argument parser
-    parser = argparse.ArgumentParser(prog=PROG,
-            description="Download manga from some websites.")
-
-    # output group
-    output = parser.add_argument_group(title='Output options')
-    output.add_argument('-l', '--loglevel', type=lambda x: logging_levels[x],
-            default=logging_levels['NORMAL'], choices=logging_levels.keys(),
-            help='specify the logging level')
-    output.add_argument('-x', '--debug', dest='loglevel',
-            action='store_const', const=logging.DEBUG,
-            help='debuging output')
-    output.add_argument('-v', '--verbose', dest='loglevel',
-            action='store_const',
-            const=logging.INFO, help='verbose output')
-    output.add_argument('-q', '--quiet', dest='loglevel',
-            action='store_const',
-            const=logging.CRITICAL, help='supress output')
-
-
-    # general group
-    general = parser.add_argument_group(title='General options')
-    general.add_argument('-b', '--background', action='store_true',
-            help='fork to background')
-    # can we hand a function to the parser to check the directory?
-    general.add_argument('-d', '--directory', metavar='DIR', default='.',
-            help='the directory to work in')
-    general.add_argument('-f', '--logfile', metavar='LOG',
-            default='manga.log', help='the filename of the logfile to use')
-    general.add_argument('-m', '--load-missing', action='store_true',
-            dest='missing',
-            help='Load all files which are stated in the logfile but ' +
-            'are missing on disk.')
-
-    # unimplemented group
-    unimplemented = parser.add_argument_group('These are not yet implemented')
-    # the idea for 'auto' was to find the manga name and the directory
-    # automatically.
-    unimplemented.add_argument('-a', '--auto', action='store_true',
-            default=True, help='do everything automatically')
-    # or use the logfile from within for downloading.
-    ## idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
-    unimplemented.add_argument('-A', '--archive',
-            help='display the logfile from within an archive')
-    unimplemented.add_argument('--view', help='create a html page')
-
-    unimplemented.add_argument('-r', '--resume', action='store_true',
-            help='resume from a logfile')
-    unimplemented.add_argument('-R', '--resume-all', action='store_true',
-            help='visit all directorys in the manga dir and resume there')
-
-    #general group
-    parser.add_argument('-V', '--version', action='version',
-            version=VERSION_STRING, help='print version information')
-    #parser.add_argument('url', nargs='+')
-    #parser.add_argument('url', nargs='?')
-    parser.add_argument('name', nargs='?', metavar='url/name')
-
-
-    # running everything
-    args = parser.parse_args()
     logging.basicConfig(
             #format='%(filename)s [%(levelname)s]: %(msg)s',
             format='%(levelname)s: %(msg)s',
