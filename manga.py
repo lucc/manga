@@ -4,11 +4,12 @@
 import argparse
 import datetime
 import inspect
+import logging
 import os
 import re
 import signal
 import sys
-# see file:///Users/luc/tmp/python-3.3.0-docs-html/library/concurrency.html
+# see file:///Users/luc/tmp/python-3.4.1-docs-html/library/concurrency.html
 import threading
 import queue
 import traceback
@@ -29,15 +30,18 @@ global_mangadir = os.getenv("MANGADIR")
 if global_mangadir is None or global_mangadir == "":
     global_mangadir = os.path.join(os.getenv("HOME"), "comic")
 global_mangadir = os.path.realpath(global_mangadir)
+logging_levels = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'VERBOSE': logging.INFO,
+        'WARNING': logging.WARNING,
+        'NORMAL': logging.WARNING,
+        'QUIET': logging.ERROR,
+        }
 
 
 def timestring():
     return datetime.datetime.now().strftime('%H:%M:%S')
-
-
-def debug_info(*strings):
-    if debug:
-        print('Debug:', *strings)
 
 
 def debug_enter(cls, *strings):
@@ -48,14 +52,9 @@ def debug_enter(cls, *strings):
         #else:
         #    name = ''
         stack = inspect.stack(context=0)
-        print('Debug: Entering', stack[1][3], name)
+        logging.debug('Entering %s %s', stack[1][3], name)
         if strings is not None and len(strings) > 0:
-            print('Debug:', *strings)
-
-
-def print_info(string, *strings):
-    if not quiet:
-        print(string, *strings)
+            logging.debug(' '.join(strings))
 
 
 def start_thread(function, arguments):
@@ -72,7 +71,7 @@ def download_image(key, url, filename, logger):
         urllib.request.urlretrieve(url, filename)
     except urllib.error.ContentTooShortError:
         os.remove(filename)
-        print_info(PROG + ':', timestring(), 'downloading failed:',
+        logging.info(PROG + ': ' + timestring() + ' downloading failed: ' +
                 ' '.join(logger.log[key]))
         logger.remove(key)
         return
@@ -86,14 +85,14 @@ def find_class_from_url(url):
     '''
     debug_enter(None)
     url = urllib.parse.urlparse(url)
-    #debug_info(str(url))
+    #logging.debug(str(url))
     defined_classes = SiteHandler.__subclasses__()
-    #debug_info(str(defined_classes))
+    #logging.debug(str(defined_classes))
     if url.netloc is None or url.netloc == '':
         raise BaseException('This url is no good.')
     for cls in defined_classes:
         if url.netloc.split('.')[-2:] == cls.DOMAIN.split('.')[-2:]:
-            debug_info('Found correct subclass:', cls)
+            logging.debug('Found correct subclass: %s', cls)
             return cls
     raise NotImplementedError(
             'There is no class available to work with this url.')
@@ -126,7 +125,7 @@ class BaseLogger():
         self.log[key] = (url, img, filename)
         self.logfile.write(' '.join(self.log[key]) + '\n')
         if not self.quiet:
-            print_info(PROG + ': ' + timestring() + ' downloading ' + img +
+            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
                     ' -> ' + filename)
 
     def remove(self, key):
@@ -192,7 +191,7 @@ class Logger(BaseLogger):
             self.log[chap] = [count for i in range(count+1)]
             self.log[chap][nr] = [url, img, filename, None]
         if not self.quiet:
-            print_info(PROG + ': ' + timestring() + ' downloading ' + img +
+            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
                     ' -> ' + filename)
 
     def success(self, chap, nr):
@@ -216,7 +215,7 @@ class Logger(BaseLogger):
         #    if item[2] == filename:
         #        self.log.remove(item)
         if not self.quiet:
-            print_info(PROG + ': ' + timestring() + 'download failed: ' +
+            logging.info(PROG + ': ' + timestring() + 'download failed: ' +
                     item[1] + ' -> ' + item[2])
 
 
@@ -259,7 +258,7 @@ class SiteHandler():
     @classmethod
     def extract_key(cls, html):
         debug_enter(SiteHandler)
-        debug_info('The class argument is', cls)
+        logging.debug('The class argument is %s', cls)
         return str(cls.extract_chapter_nr(html)) + '-' + str(
                 cls.extract_page_nr(html))
 
@@ -297,7 +296,7 @@ class SiteHandler():
             img = cls.extract_img_url(html)
             filename = cls.extract_filename(html)
         except AttributeError:
-            print_info(url, 'seems to be the last page.')
+            logging.info('%s seems to be the last page.', url)
             return
         self.log.add(key, url, img, filename)
         download_image(key, img, filename, self.log)
@@ -332,17 +331,17 @@ class SiteHandler():
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
-                print_info(url, 'returned', e)
+                logging.info('%s returned %s', url, e)
                 return
             html = BeautifulSoup(html)
             try:
                 key, nexturl, img, filename = \
                         self.__class__.extract_linear(html)
             except AttributeError:
-                #print_info('This should never happen!')
+                #logging.info('This should never happen!')
                 #traceback.print_exception(*sys.exc_info())
-                print_info(url, 'seems to be the last page.')
-                #print_info('We cought this but will return here.')
+                logging.info('%s seems to be the last page.', url)
+                #logging.info('We cought this but will return here.')
                 return
             self.log.add(key, url, img, filename)
             start_thread(download_image,
@@ -373,9 +372,9 @@ class SiteHandler():
         try:
             request = urllib.request.urlopen(url)
         except urllib.error.URLError as e:
-            print_info(url, 'returned', e)
+            logging.info('%s returned %s', url, e)
             return
-        debug_info('Finished preloading.')
+        logging.debug('Finished preloading.')
         html = BeautifulSoup(request)
         url = self.__class__.extract_next_url(html)
         self.start_at(url)
@@ -438,7 +437,7 @@ class Mangareader(SiteHandler):
     def extract_manga_name(html):
         debug_enter(Mangareader)
         c= re.sub(r'(.*) [0-9]+$', r'\1', html.find(id='mangainfo').h1.string)
-        print_info("so: |" + c + '|')
+        logging.info("so: |" + c + '|')
         return c
 
     def extract_linear(html):
@@ -465,7 +464,7 @@ class Mangareader(SiteHandler):
                     Mangareader.expand_rel_url(manga + '/' + str(chapter))))
             count = self.extract_page_count(html)
         for page in range(startpage, count+1):
-            print_info('xxx',Mangareader.expand_rel_url(manga + '/' +
+            logging.info('xxx '+Mangareader.expand_rel_url(manga + '/' +
                     str(chapter) + '/' + str(page))+'|')
             self.helper_load_page_and_image(
                     Mangareader.expand_rel_url(manga + '/' + str(chapter) +
@@ -479,7 +478,7 @@ class Mangareader(SiteHandler):
             img = Mangareader.extract_img_url(html)
             filename = Mangareader.extract_filename(html)
         except AttributeError:
-            print_info('This should never happen!',
+            logging.info('This should never happen! %s',
                     '(Comming from Mangareader.helper_load_page_and_image)')
             traceback.print_exception(*sys.exc_info())
             return
@@ -497,7 +496,7 @@ class Mangareader(SiteHandler):
                 chapternr = Mangareader.extract_chapter_nr(html)
                 nexturl = Mangareader.extract_next_url(html)
             except AttributeError:
-                print_info(url, 'seems to be the last page.')
+                logging.info('%s seems to be the last page.', url)
                 return
             self.log.add
             url = nexturl
@@ -636,7 +635,7 @@ if __name__ == '__main__':
         # We change to the directory. We could only just return its path an let
         # the caller handle the rest (this is the aim for the future)
         os.chdir(directory)
-        print_info('Working in ' + os.path.realpath(os.path.curdir) + '.')
+        logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
         return os.path.curdir
         return directory
 
@@ -647,7 +646,7 @@ if __name__ == '__main__':
         line = log.readlines()[-1]
         log.close()
         url = line.split()[0]
-        debug_info('Found url for resumeing: ' + url)
+        logging.debug('Found url for resumeing: %s', url)
         cls = find_class_from_url(url)
         worker = cls(directory, logfile)
         worker.start_after(url)
@@ -658,7 +657,7 @@ if __name__ == '__main__':
         for d in [os.path.join(global_mangadir, dd) for dd in
                 os.listdir(global_mangadir)]:
             os.chdir(d)
-            print_info('Working in ' + os.path.realpath(os.path.curdir) + '.')
+            logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
             resume(os.path.join(global_mangadir, d), 'manga.log')
 
 
@@ -669,7 +668,7 @@ if __name__ == '__main__':
             try:
                 l = url.parse.urlparse(string)
             except:
-                print_info('The fucking ERROR!')
+                logging.critical('The fucking ERROR!')
 
 
     def parse_args_version_1():
@@ -681,7 +680,7 @@ if __name__ == '__main__':
             parser.error('You can only use -r or give an url.')
         elif not args.resume and args.url is None:
             parser.error('You must specify -r or an url.')
-        print(args)
+        logging.info(args)
         # running
         if args.resume:
             resume(args.directory, args.logfile)
@@ -702,7 +701,7 @@ if __name__ == '__main__':
             parser.error('You can only use -r or give an url.')
         elif not args.resume and args.name is None:
             parser.error('You must specify -r or an url.')
-        debug_info(args)
+        logging.debug(args)
         # running
         if args.resume:
             resume(args.directory, args.logfile)
@@ -738,7 +737,7 @@ if __name__ == '__main__':
         else:
             os.mkdir(directory)
         os.chdir(directory)
-        print_info('Working in ' + os.path.realpath(os.path.curdir) + '.')
+        logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
         args.directory = prepare_output_dir(args.directory, args.string)
         #if args.auto:
         #    automatic(args.string)
@@ -747,7 +746,7 @@ if __name__ == '__main__':
             parser.error('You can only use -r or give an url.')
         elif not args.resume and args.url is None:
             parser.error('You must specify -r or an url.')
-        print_info(args)
+        logging.info(args)
         # running
         if args.resume:
             resume(args.directory, args.logfile)
@@ -771,14 +770,14 @@ if __name__ == '__main__':
             parser.error('You can only use -r or -m or give an url.')
         elif not args.resume and args.name is None and not args.missing:
             parser.error('You must specify -r or -m or an url.')
-        debug_info(args)
+        logging.debug(args)
         # running
         if args.resume:
             resume(args.directory, args.logfile)
-            print_info('args.missing was', args.missing)
+            logging.info('args.missing was %s', args.missing)
         elif args.missing:
             download_missing(args.directory, args.logfile)
-            print_info('args.resume was', args.resume)
+            logging.info('args.resume was %s', args.resume)
         else:
             cls = find_class_from_url(args.name)
             worker = cls(args.directory, args.logfile)
@@ -793,9 +792,9 @@ if __name__ == '__main__':
             for thread in threading.enumerate():
                 if thread != current:
                     thread.join()
-            debug_info('All threads joined.')
+            logging.debug('All threads joined.')
         except:
-            print_info('Could not get current thread.',
+            logging.info('Could not get current thread. %s',
                     'Not waiting for other threads.')
 
 
@@ -809,6 +808,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog=PROG,
             description="Download manga from some websites.")
 
+    # output group
+    output = parser.add_argument_group(title='Output options')
+    output.add_argument('-l', '--loglevel', type=lambda x: logging_levels[x],
+            default=logging_levels['NORMAL'], choices=logging_levels.keys(),
+            help='specify the logging level')
+    output.add_argument('-x', '--debug', dest='loglevel',
+            action='store_const', const=logging.DEBUG,
+            help='debuging output')
+    output.add_argument('-v', '--verbose', dest='loglevel',
+            action='store_const',
+            const=logging.INFO, help='verbose output')
+    output.add_argument('-q', '--quiet', dest='loglevel',
+            action='store_const',
+            const=logging.CRITICAL, help='supress output')
+
+
     # general group
     general = parser.add_argument_group(title='General options')
     general.add_argument('-b', '--background', action='store_true',
@@ -818,10 +833,6 @@ if __name__ == '__main__':
             help='the directory to work in')
     general.add_argument('-f', '--logfile', metavar='LOG',
             default='manga.log', help='the filename of the logfile to use')
-    general.add_argument('-q', '--quiet', dest='quiet', default=False,
-            action='store_true', help='supress output')
-    general.add_argument('-v', '--verbose', dest='quiet', default=False,
-            action='store_false', help='verbose output')
     general.add_argument('-m', '--load-missing', action='store_true',
             dest='missing',
             help='Load all files which are stated in the logfile but ' +
@@ -833,8 +844,6 @@ if __name__ == '__main__':
     # automatically.
     unimplemented.add_argument('-a', '--auto', action='store_true',
             default=True, help='do everything automatically')
-    unimplemented.add_argument('-x', '--debug', action='store_true',
-            help='give verbose debugging output')
     # or use the logfile from within for downloading.
     ## idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
     unimplemented.add_argument('-A', '--archive',
@@ -856,9 +865,14 @@ if __name__ == '__main__':
 
     # running everything
     args = parser.parse_args()
+    logging.basicConfig(
+            #format='%(filename)s [%(levelname)s]: %(msg)s',
+            format='%(levelname)s: %(msg)s',
+            level=args.loglevel
+            )
     # set global variables from cammand line values
-    quiet = args.quiet
-    debug = args.debug
+    #quiet = args.quiet
+    #debug = args.debug
     parse_args_version_4()
     join_threads()
-    debug_info('Exiting ...')
+    logging.debug('Exiting ...')
