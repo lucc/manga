@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# imports {{{1
+# imports
 import argparse
 import datetime
 import inspect
@@ -16,13 +16,13 @@ import urllib.request
 
 from bs4 import BeautifulSoup
 
-# constants {{{1
+# constants
 MAIOR_VERSION = 0
 MINOR_VERSION = 2
 PROG = os.path.basename(sys.argv[0])
 VERSION_STRING = PROG + ' ' + str(MAIOR_VERSION) + '.' + str(MINOR_VERSION)
 
-# variables {{{1
+# variables
 quiet = True
 debug = False
 global_mangadir = os.getenv("MANGADIR")
@@ -31,16 +31,16 @@ if global_mangadir is None or global_mangadir == "":
 global_mangadir = os.path.realpath(global_mangadir)
 
 
-def timestring():  # {{{1
+def timestring():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
 
-def debug_info(*strings):  # {{{1
+def debug_info(*strings):
     if debug:
         print('Debug:', *strings)
 
 
-def debug_enter(cls, *strings):  # {{{1
+def debug_enter(cls, *strings):
     if debug:
         name = 'of ' + cls.__name__ if type(cls) is type else ''
         #if type(cls) is type:
@@ -53,19 +53,19 @@ def debug_enter(cls, *strings):  # {{{1
             print('Debug:', *strings)
 
 
-def print_info(string, *strings):  # {{{1
+def print_info(string, *strings):
     if not quiet:
         print(string, *strings)
 
 
-def start_thread(function, arguments):  # {{{1
+def start_thread(function, arguments):
     #t = _thread.start_new_thread(function, arguments)
     #return
     t = threading.Thread(target=function, args=arguments)
     t.start()
     #threads.append(t)
 
-def download_image(key, url, filename, logger):  # {{{1
+def download_image(key, url, filename, logger):
     debug_enter(None)
     #raise NotImplementedError()
     try:
@@ -79,7 +79,7 @@ def download_image(key, url, filename, logger):  # {{{1
     logger.remove(key)
 
 
-def find_class_from_url(url):  # {{{1
+def find_class_from_url(url):
     '''
     Parse the given url and try to find a class that can load from that
     domain.  Return the class.
@@ -99,7 +99,7 @@ def find_class_from_url(url):  # {{{1
             'There is no class available to work with this url.')
 
 
-def download_missing(directory, logfile):  # {{{1
+def download_missing(directory, logfile):
     '''
     Load all images which are mentioned in the logfile but not present in the
     directory.
@@ -112,41 +112,41 @@ def download_missing(directory, logfile):  # {{{1
             start_thread(download_image, (index, img, filename, logger))
 
 
-class BaseLogger(): #{{{1
+class BaseLogger():
 
-    def __init__(self, logfile, quiet=False): #{{{2
+    def __init__(self, logfile, quiet=False):
         self.log = dict()
         self.logfile = open(logfile, 'a')
         self.quiet = quiet
 
-    def __del__(self): #{{{2
+    def __del__(self):
         self.cleanup()
 
-    def add(self, key, url, img, filename): #{{{2
+    def add(self, key, url, img, filename):
         self.log[key] = (url, img, filename)
         self.logfile.write(' '.join(self.log[key]) + '\n')
         if not self.quiet:
             print_info(PROG + ': ' + timestring() + ' downloading ' + img +
                     ' -> ' + filename)
 
-    def remove(self, key): #{{{2
+    def remove(self, key):
         del self.log[key]
 
-    def cleanup(self): #{{{2
+    def cleanup(self):
         debug_enter(BaseLogger)
         self.logfile.close()
         for item in self.log:
             os.remove(item[2])
 
 
-class Logger(BaseLogger): #{{{1
+class Logger(BaseLogger):
 
-    # Some constants to indicate errors and success {{{2
+    # Some constants to indicate errors and success
     ERROR = 1
     FAIL = 2
     SUCCESS = 3
 
-    #def __init__(self, logfile, quiet=False): #{{{2
+    #def __init__(self, logfile, quiet=False):
     #    logfile = open(logfile, 'r')
     #    self.log = [line.split(' ', 2) for line in logfile.readlines()]
     #    logfile.close()
@@ -158,7 +158,7 @@ class Logger(BaseLogger): #{{{1
     #            _thread.start_new_thread(
     #                    download_image, (item[1], item[2], self))
 
-    def __del__(self): #{{{2
+    def __del__(self):
         self.write_logfile()
         self.super().__del__()
         # Do I need to del these manually?
@@ -166,7 +166,7 @@ class Logger(BaseLogger): #{{{1
         #del self.log
         #del self.quiet
 
-    def add(self, chap, count, nr=None, url=None, img=None, filename=None): #{{{2
+    def add(self, chap, count, nr=None, url=None, img=None, filename=None):
         debug_enter(Logger)
         if nr is None and url is None and img is None and filename is None:
             if chap in self.log:
@@ -195,7 +195,7 @@ class Logger(BaseLogger): #{{{1
             print_info(PROG + ': ' + timestring() + ' downloading ' + img +
                     ' -> ' + filename)
 
-    def success(self, chap, nr): #{{{2
+    def success(self, chap, nr):
         debug_enter(Logger)
         if chap not in self.log:
             raise BaseException('This key was not present:', chap)
@@ -206,7 +206,7 @@ class Logger(BaseLogger): #{{{1
         #        self.log.remove(item)
         #        return
 
-    def failed(self, chap, nr): #{{{2
+    def failed(self, chap, nr):
         debug_enter(Logger)
         if chap not in self.log:
             raise BaseException('This key was not present:', chap)
@@ -220,9 +220,9 @@ class Logger(BaseLogger): #{{{1
                     item[1] + ' -> ' + item[2])
 
 
-class SiteHandler(): #{{{1
+class SiteHandler():
 
-    # References to be implement in subclasses. {{{2
+    # References to be implement in subclasses.
     # It is better to remove these and use hasattr and getattr instad of an
     # try-except block in start_at()
     #def extract_key(html): raise NotImplementedError()
@@ -231,7 +231,7 @@ class SiteHandler(): #{{{1
     #def extract_manga_name(html): raise NotImplementedError()
     #def load_intelligent(self, url): raise NotImplementedError()
 
-    def __init__(self, directory, logfile): #{{{2
+    def __init__(self, directory, logfile):
         debug_enter(SiteHandler)
         logfile = os.path.realpath(os.path.join(directory, logfile))
         self.log = BaseLogger(logfile, quiet)
@@ -243,7 +243,7 @@ class SiteHandler(): #{{{1
         os.chdir(directory)
 
     @classmethod
-    def expand_rel_url(cls, url): #{{{2
+    def expand_rel_url(cls, url):
         '''Expand the given string into a valid URL.  The string is assumed to
         be relative to the site handled by the class cls.'''
         if '://' in url:
@@ -257,25 +257,25 @@ class SiteHandler(): #{{{1
 
 
     @classmethod
-    def extract_key(cls, html): #{{{2
+    def extract_key(cls, html):
         debug_enter(SiteHandler)
         debug_info('The class argument is', cls)
         return str(cls.extract_chapter_nr(html)) + '-' + str(
                 cls.extract_page_nr(html))
 
     @classmethod
-    def extract_filename(cls, html): #{{{2
+    def extract_filename(cls, html):
         return ('_'.join(cls.extract_manga_name(html).split()) + '-' +
                 str(cls.extract_chapter_nr(html)) + '-' +
                 str(cls.extract_page_nr(html)) + '.' +
                 os.path.splitext(cls.extract_img_url(html))[1]).lower()
 
     @classmethod
-    #def extract_image_extension(cls, html): #{{{2
+    #def extract_image_extension(cls, html):
     #    return .split('.')[-1]
 
     @classmethod
-    def extract_linear(cls, html): #{{{2
+    def extract_linear(cls, html):
         '''
         This method returns a tupel of the next url, the image url and the
         filename to downlowd to.  It will extract these information from the
@@ -289,7 +289,7 @@ class SiteHandler(): #{{{1
         filename = cls.extract_filename(html)
         return (key, nexturl, img, filename)
 
-    def load_image(self, html, url): #{{{2
+    def load_image(self, html, url):
         debug_enter(SiteHandler)
         cls = self.__class__
         try:
@@ -302,7 +302,7 @@ class SiteHandler(): #{{{1
         self.log.add(key, url, img, filename)
         download_image(key, img, filename, self.log)
 
-    def load_linear(self, url): #{{{2
+    def load_linear(self, url):
         '''
         This method loads all images starting at the specified url.  It will
         walk the sites in a linear manner.  The class with which this method
@@ -319,7 +319,7 @@ class SiteHandler(): #{{{1
             start_thread(self.load_image, (html, url))
             url = nexturl
 
-    def load_linear_fast(self, url): #{{{2
+    def load_linear_fast(self, url):
         '''
         This method loads all images starting at the specified url.  It will
         walk the sites in a linear manner.  The necessary information will be
@@ -350,7 +350,7 @@ class SiteHandler(): #{{{1
             url = nexturl
 
 
-    def start_at(self, url): #{{{2
+    def start_at(self, url):
         'Load all images starting at a specific url.'
         debug_enter(SiteHandler)
         loader = getattr(self, 'load_intelligent', getattr(self,
@@ -367,7 +367,7 @@ class SiteHandler(): #{{{1
         #    except NotImplementedError:
         #        self.load_linear(url)
 
-    def start_after(self, url): #{{{2
+    def start_after(self, url):
         'Load all images starting at the url after the one specified.'
         debug_enter(SiteHandler)
         try:
@@ -381,67 +381,67 @@ class SiteHandler(): #{{{1
         self.start_at(url)
 
 
-class Mangareader(SiteHandler): #{{{1
+class Mangareader(SiteHandler):
 
-    # class constants {{{2
+    # class constants
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
 
-    def __init__(self, directory, logfile): #{{{2
+    def __init__(self, directory, logfile):
         debug_enter(Mangareader)
         super().__init__(directory, logfile)
 
-    #def extract_key(html): #{{{2
+    #def extract_key(html):
     #    debug_enter(Mangareader)
     #    return str(Mangareader.extract_chapter_nr(html)) + '-' + str(
     #            Mangareader.extract_page_nr(html))
 
-    def extract_next_url(html): #{{{2
+    def extract_next_url(html):
         debug_enter(Mangareader)
         return Mangareader.expand_rel_url(html.find(id='img').parent['href'])
 
-    def extract_img_url(html): #{{{2
+    def extract_img_url(html):
         debug_enter(Mangareader)
         return html.find(id='img')['src']
 
-    def extract_filename(html): #{{{2
+    def extract_filename(html):
         debug_enter(Mangareader)
         return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
                 '.' + Mangareader.extract_img_url(html).split('.')[-1]
 
-    def extract_chapter_nr(html): #{{{2
+    def extract_chapter_nr(html):
         debug_enter(Mangareader)
         return int(html.find(id='mangainfo').h1.string.split()[-1])
 
-    def extract_page_nr(html): #{{{2
+    def extract_page_nr(html):
         debug_enter(Mangareader)
         return int(html.find(id='mangainfo').span.string.split()[1])
 
-    def extract_page_count(html): #{{{2
+    def extract_page_count(html):
         debug_enter(Mangareader)
         return len(html.find(id='pageMenu').find_all('option'))
 
-    def extract_page_urls(html): #{{{2
+    def extract_page_urls(html):
         debug_enter(Mangareader)
         return [Mangareader.expand_rel_url(o['value']) for o in
                 html.find(id='pageMenu').find_all('option')]
 
-    def extract_main_page(html): #{{{2
+    def extract_main_page(html):
         debug_enter(Mangareader)
         return Mangareader.expand_rel_url(
                 html.find(id='mangainfo').h2.a['href'])
 
-    def extract_chapter_count(html): #{{{2
+    def extract_chapter_count(html):
         # This should be called with the html for the main page.
         return len(html.find(id='chapterlist').find_all('a'))
 
-    def extract_manga_name(html): #{{{2
+    def extract_manga_name(html):
         debug_enter(Mangareader)
         c= re.sub(r'(.*) [0-9]+$', r'\1', html.find(id='mangainfo').h1.string)
         print_info("so: |" + c + '|')
         return c
 
-    def extract_linear(html): #{{{2
+    def extract_linear(html):
         debug_enter(Mangareader)
         img_tag = html.find(id='img')
         mangainfo = html.find(id='mangainfo')
@@ -453,11 +453,11 @@ class Mangareader(SiteHandler): #{{{1
                 img.split('.')[-1]
         return (key, nexturl, img, filename)
 
-    def helper_load_chapter(url, startpage=1): #{{{2
+    def helper_load_chapter(url, startpage=1):
         debug_enter(Mangareader)
         raise NotImplementedError()
 
-    def helper_load_chapter_2(self, manga, chapter, startpage=1, count=0): #{{{2
+    def helper_load_chapter_2(self, manga, chapter, startpage=1, count=0):
         debug_enter(Mangareader)
         if count == 0:
             # we need the count so we will look it up if it was not given
@@ -471,7 +471,7 @@ class Mangareader(SiteHandler): #{{{1
                     Mangareader.expand_rel_url(manga + '/' + str(chapter) +
                     '/' + str(page)))
 
-    def helper_load_page_and_image(self, url): #{{{2
+    def helper_load_page_and_image(self, url):
         # TODO Can we push this in the superclass?
         debug_enter(Mangareader)
         html = BeautifulSoup(urllib.request.urlopen(url))
@@ -486,7 +486,7 @@ class Mangareader(SiteHandler): #{{{1
         self.log.add(url, img, filename)
         download_image(img, filename)
 
-    def load_intelligent_1(self, url): #{{{2
+    def load_intelligent_1(self, url):
         raise NotImplementedError("TODO")
         debug_enter(Mangareader)
         while url is not None:
@@ -509,7 +509,7 @@ class Mangareader(SiteHandler): #{{{1
             #        (chapternr, pagenr, pagecount))
         raise NotImplementedError()
 
-    def load_intelligent_2(self, url): #{{{2
+    def load_intelligent_2(self, url):
         debug_enter(Mangareader)
         html = BeautifulSoup(urllib.request.urlopen(url))
         chapternr = Mangareader.extract_chapter_nr(html)
@@ -531,31 +531,31 @@ class Mangareader(SiteHandler): #{{{1
 #Mangareader.load_intelligent = Mangareader.load_intelligent_1
 
 
-class Unixmanga(SiteHandler): #{{{1
+class Unixmanga(SiteHandler):
 
-    # class constants {{{2
+    # class constants
     PROTOCOL = 'http'
     DOMAIN = 'unixmanga.com'
 
-    def __init__(self, directory, logfile): #{{{2
+    def __init__(self, directory, logfile):
         debug_enter(Unixmanga)
         suoer().__init__(directory, logfile)
 
-    def extract_next_url(html): #{{{2
+    def extract_next_url(html):
         debug_enter(Unixmanga)
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
 
-class Mangafox(SiteHandler): #{{{1
+class Mangafox(SiteHandler):
     DOMAIN='mangafox.me'
     PROTOCOL='http'
 
-    def __init__(self, directory, logfile): #{{{2
+    def __init__(self, directory, logfile):
         debug_enter(Mangafox)
         super().__init__(directory, logfile)
 
-    def extract_next_url(html): #{{{2
+    def extract_next_url(html):
         debug_enter(Mangafox)
         tmp = html.find(id='viewer').a['href']
         if tmp == "javascript:void(0);":
@@ -571,22 +571,22 @@ class Mangafox(SiteHandler): #{{{1
 
     def extract_key(html): raise NotImplementedError()
 
-    def extract_img_url(html): #{{{2
+    def extract_img_url(html):
         #return html.find(id='viewer').a.img['src']
         return html.find(id='image')['src']
 
-    def extract_filename(html): #{{{2
+    def extract_filename(html):
         keys = extract_key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
                 extract_img_url(html).split('.')[-1]
 
-    def extract_chapter_nr(html): #{{{2
+    def extract_chapter_nr(html):
         return extract_key_helper()[2]
 
-    def extract_page_nr(html): #{{{2
+    def extract_page_nr(html):
         return extract_key_helper()[3]
 
-    def extract_key_helper(html): #{{{2
+    def extract_key_helper(html):
         for tmp in html.findAll('link'):
             if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
                 val = tmp['href'].split('/')
@@ -609,9 +609,9 @@ class Mangafox(SiteHandler): #{{{1
         return (manga, volume, chapter, page)
 
 
-if __name__ == '__main__': #{{{1
+if __name__ == '__main__':
 
-    def prepare_output_dir(directory, string): #{{{2
+    def prepare_output_dir(directory, string):
         # or should we used a named argument and detect the manga name
         # automatically if it is not given.
         '''Find the correct directory to save output files to and set
@@ -641,7 +641,7 @@ if __name__ == '__main__': #{{{1
         return directory
 
 
-    def resume(directory, logfile): #{{{2
+    def resume(directory, logfile):
         debug_enter(None)
         log = open(logfile, 'r')
         line = log.readlines()[-1]
@@ -653,7 +653,7 @@ if __name__ == '__main__': #{{{1
         worker.start_after(url)
 
 
-    def resume_all(): #{{{2
+    def resume_all():
         debug_enter(None)
         for d in [os.path.join(global_mangadir, dd) for dd in
                 os.listdir(global_mangadir)]:
@@ -662,7 +662,7 @@ if __name__ == '__main__': #{{{1
             resume(os.path.join(global_mangadir, d), 'manga.log')
 
 
-    def automatic(string): #{{{2
+    def automatic(string):
         if os.path.exists(os.path.join(args.directory, string)):
             pass
         else:
@@ -672,7 +672,7 @@ if __name__ == '__main__': #{{{1
                 print_info('The fucking ERROR!')
 
 
-    def parse_args_version_1(): #{{{2
+    def parse_args_version_1():
         args.directory = prepare_output_dir(args.directory, args.url)
         #if args.auto:
         #    automatic(args.string)
@@ -693,7 +693,7 @@ if __name__ == '__main__': #{{{1
             worker.start_at(args.url)
 
 
-    def parse_args_version_2(): #{{{2
+    def parse_args_version_2():
         args.directory = prepare_output_dir(args.directory, args.name)
         #if args.auto:
         #    automatic(args.string)
@@ -714,7 +714,7 @@ if __name__ == '__main__': #{{{1
             worker.start_at(args.name)
 
 
-    def parse_args_version_3(): #{{{2
+    def parse_args_version_3():
         # Define the base directory for the directory to load to.
         mangadir = '.'
         directory = args.directory
@@ -759,7 +759,7 @@ if __name__ == '__main__': #{{{1
             worker.start_at(args.url)
 
 
-    def parse_args_version_4(): #{{{2
+    def parse_args_version_4():
         args.directory = prepare_output_dir(args.directory, args.name)
         #if args.auto:
         #    automatic(args.string)
@@ -787,7 +787,7 @@ if __name__ == '__main__': #{{{1
             worker.start_at(args.name)
 
 
-    def join_threads(): #{{{2
+    def join_threads():
         try:
             current = threading.current_thread()
             for thread in threading.enumerate():
@@ -799,17 +799,17 @@ if __name__ == '__main__': #{{{1
                     'Not waiting for other threads.')
 
 
-    def interrupt_cleanup(): #{{{2
+    def interrupt_cleanup():
         """Stop all threads and write the logfile before exiting.  This
         function should be called when an interrupt signal is called."""
         pass
 
 
-    # defining the argument parser {{{2
+    # defining the argument parser
     parser = argparse.ArgumentParser(prog=PROG,
             description="Download manga from some websites.")
 
-    # general group {{{3
+    # general group
     general = parser.add_argument_group(title='General options')
     general.add_argument('-b', '--background', action='store_true',
             help='fork to background')
@@ -827,7 +827,7 @@ if __name__ == '__main__': #{{{1
             help='Load all files which are stated in the logfile but ' +
             'are missing on disk.')
 
-    # unimplemented group {{{3
+    # unimplemented group
     unimplemented = parser.add_argument_group('These are not yet implemented')
     # the idea for 'auto' was to find the manga name and the directory
     # automatically.
@@ -846,7 +846,7 @@ if __name__ == '__main__': #{{{1
     unimplemented.add_argument('-R', '--resume-all', action='store_true',
             help='visit all directorys in the manga dir and resume there')
 
-    #general group {{{3
+    #general group
     parser.add_argument('-V', '--version', action='version',
             version=VERSION_STRING, help='print version information')
     #parser.add_argument('url', nargs='+')
@@ -854,7 +854,7 @@ if __name__ == '__main__': #{{{1
     parser.add_argument('name', nargs='?', metavar='url/name')
 
 
-    # running everything {{{2
+    # running everything
     args = parser.parse_args()
     # set global variables from cammand line values
     quiet = args.quiet
@@ -862,5 +862,3 @@ if __name__ == '__main__': #{{{1
     parse_args_version_4()
     join_threads()
     debug_info('Exiting ...')
-
-# vim: foldmethod=marker
