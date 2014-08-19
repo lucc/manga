@@ -21,6 +21,9 @@ MAIOR_VERSION = 0
 MINOR_VERSION = 2
 PROG = os.path.basename(sys.argv[0])
 VERSION_STRING = PROG + ' ' + str(MAIOR_VERSION) + '.' + str(MINOR_VERSION)
+BASE = logging.INFO
+DECREMENT = 1
+logging.USER = BASE - DECREMENT
 
 # variables
 quiet = True
@@ -74,6 +77,62 @@ def download_missing(directory, logfile):
             start_thread(download_image, (index, img, filename, logger))
 
 
+class LoggingFilter():
+
+    '''A filter to select only the logging messages of a predefined
+    severity.'''
+
+    def __init__(self, base=BASE, decrement=DECREMENT):
+        '''Set up the filter with a base severity and a decrement (positive
+        integer).'''
+        self._base = base
+        self._decrement = decrement
+
+
+    def filter(self, record):
+        '''Filter the record.  Only returnes True for records of
+        self._base-self._decrement.'''
+        return self._base - self._decrement == record.level
+
+
+
+class Loader():
+
+    """Docstring for Loader. """
+
+    def __init__(self, directory, logfile, url):
+        """@todo: to be defined1.
+
+        :directory: @todo
+        :logfile: @todo
+        :url: @todo
+
+        """
+        self._directory = directory
+        self._logfile = logfile
+        self._url = url
+        filelogger = logging.FileHandler(os.path.join(directory, logfile))
+        filelogger.setLevel(logging.USER)
+        formatter = logging.Formatter('%(url)s %(img)s %(file)s')
+        filelogger.setFormatter(formatter)
+        filelogger.addFilter(LoggingFilter())
+        logging.getLogger('').addHandler(filelogger)
+        cls = find_class_from_url(url)
+        self._worker = cls()
+
+
+    def start(self, url, after=False):
+        """Start loading images at the given url.  If after is True load url
+        to find the next url and start loading there.
+
+        :url: @todo
+        :after: @todo
+        :returns: @todo
+
+        """
+        self._worker.start(url, after)
+
+
 
 class SiteHandler():
 
@@ -88,6 +147,7 @@ class SiteHandler():
 
 
     def __init__(self, directory, logfile):
+        logging.debug('', stack_info=True)
         logfile = os.path.realpath(os.path.join(directory, logfile))
         #signal.signal(signal.SIGTERM, self.log.cleanup)
         # This is not optimal: try to not change the dir.
@@ -131,6 +191,8 @@ class SiteHandler():
         except urllib.error.ContentTooShortError:
             os.remove(filename)
             logging.exception('Could not download %s to %s.', url, filename)
+        logging.log(logging.USER, '',
+                extra={'url':None, 'img':url, 'file':filename})
 
 
     @staticmethod
