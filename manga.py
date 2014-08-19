@@ -243,8 +243,6 @@ class SiteHandler():
 
     @staticmethod
     def _thread(function, arguments):
-        #t = _thread.start_new_thread(function, arguments)
-        #return
         t = threading.Thread(target=function, args=arguments)
         t.start()
         #threads.append(t)
@@ -390,7 +388,6 @@ class Mangafox(SiteHandler):
     def _key(html): raise NotImplementedError()
 
     def _img(html):
-        #return html.find(id='viewer').a.img['src']
         return html.find(id='image')['src']
 
     def _filename(html):
@@ -429,9 +426,9 @@ class Mangafox(SiteHandler):
 
 if __name__ == '__main__':
 
-    def parse_comand_line():
-        '''Parse the command line and return the arguments object returned by
-        the parser.'''
+    def main():
+        '''Parse the command line, check the resulting namespace, prepare the
+        environment and load the images.'''
         import argparse
         parser = argparse.ArgumentParser(prog=PROG,
                 description="Download manga from some websites.")
@@ -484,8 +481,6 @@ if __name__ == '__main__':
         #general group
         parser.add_argument('-V', '--version', action='version',
                 version=VERSION_STRING, help='print version information')
-        #parser.add_argument('url', nargs='+')
-        #parser.add_argument('url', nargs='?')
         parser.add_argument('name', nargs='?', metavar='url/name',
                 type=check_url)
         args = parser.parse_args()
@@ -493,43 +488,45 @@ if __name__ == '__main__':
             parser.error('You can only use -r or -m or give an url.')
         elif not args.resume and args.name is None and not args.missing:
             parser.error('You must specify -r or -m or an url.')
+
+        # configure the logger
         logging.basicConfig(
-                #format='%(filename)s [%(levelname)s]: %(msg)s',
                 format='%(levelname)s: %(msg)s',
                 level=args.loglevel
                 )
         logging.debug(
                 'The parsed command line arguments are {}.'.format(args))
-        return args
 
-
-    def prepare_output_dir(directory, string):
-        # or should we used a named argument and detect the manga name
-        # automatically if it is not given.
-        '''Find the correct directory to save output files to and set
-        directory'''
-
-        #mangadir = os.path.join(os.getenv("HOME"), "comic")
-        #if directory == '.':
-        #    if os.path.exists(os.path.join(mangadir, string)):
-        #        directory = os.path.exists(os.path.join(mangadir, string))
-        #    elif is_url(string):
-
-        mangadir = '.'
-        if not directory == '.' and not os.path.sep in directory:
+        # set up the directory
+        directory = args.directory
+        # TODO can the directory be retrieved from the manga name?
+        mangadir = os.path.curdir
+        if not directory == os.path.curdir and not os.path.sep in directory:
             mangadir = global_mangadir
             directory = os.path.realpath(os.path.join(mangadir, directory))
-        if os.path.exists(directory):
-            if not os.path.isdir(directory):
-                raise EnvironmentError("Path exists but is not a directory.")
+        if os.path.isdir(directory):
+            pass
         else:
-            os.mkdir(directory)
-        # We change to the directory. We could only just return its path an let
-        # the caller handle the rest (this is the aim for the future)
-        os.chdir(directory)
-        logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
-        return os.path.curdir
-        return directory
+            try:
+                os.mkdir(directory)
+            except FileExistsError:
+                parser.error('Path exists but is not a directory.')
+        logging.debug('Directory set to {}.'.format(directory))
+
+        # start downloading
+        if args.resume_all:
+            resume_all()
+        elif args.resume:
+            resume(directory, args.logfile)
+        elif args.missing:
+            download_missing(directory, args.logfile)
+        else:
+            cls = find_class_from_url(args.name)
+            worker = cls(directory, args.logfile)
+            worker.start(args.name)
+        join_threads()
+        logging.debug('Exiting ...')
+        sys.exit()
 
 
     def resume(directory, logfile):
@@ -544,95 +541,12 @@ if __name__ == '__main__':
 
 
     def resume_all():
-        for d in [os.path.join(global_mangadir, dd) for dd in
-                os.listdir(global_mangadir)]:
-            os.chdir(d)
-            logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
-            resume(os.path.join(global_mangadir, d), 'manga.log')
-
-
-    def automatic(string):
-        if os.path.exists(os.path.join(args.directory, string)):
-            pass
-        else:
-            try:
-                l = url.parse.urlparse(string)
-            except:
-                logging.critical('The fucking ERROR!')
-
-
-    def parse_args_version_1(directory=None, name=None, resume=None, logfile=None):
-        directory = prepare_output_dir(directory, name)
-        if resume:
-            resume(directory, logfile)
-        else:
-            cls = find_class_from_url(name)
-            worker = cls(directory, logfile)
-            worker.start_at(name)
-
-
-    def parse_args_version_2(directory=None, name=None, resume=None,
-            logfile=None, string=None, url=None):
-        # Define the base directory for the directory to load to.
-        mangadir = '.'
-        if not os.path.sep in directory:
-            mangadir = os.getenv("MANGADIR")
-            if mangadir is None or mangadir == "":
-                mangadir = os.path.join(os.getenv("HOME"), "comic")
-            mangadir = os.path.realpath(mangadir)
-        # Find the actual directory to work in.
-        if directory == '.':
-            # There was no directory given on command line.  Try to find the
-            # directory in name.
-            pass
-        else:
-            # We got a directory from the command line.
-            directory = os.path.join(mangadir, directory)
-        # Create the directory if necessary.
-        if os.path.exists(directory):
-            if not os.path.isdir(directory):
-                raise EnvironmentError("Path exists but is not a directory.")
-        else:
-            os.mkdir(directory)
-        os.chdir(directory)
-        logging.info('Working in ' + os.path.realpath(os.path.curdir) + '.')
-        directory = prepare_output_dir(directory, string)
-        #if args.auto:
-        #    automatic(string)
-        #el
-        # running
-        if resume:
-            resume(directory, logfile)
-        else:
-            cls = find_class_from_url(url)
-            worker = cls(directory, logfile)
-            #worker = Mangareader(directory, logfile)
-            #worker.run(url)
-            worker.start_at(url)
-
-
-    def parse_args_version_3(directory=None, name=None, resume=None,
-            logfile=None, string=None, url=None, resume_all=None, missing=None, **kwargs):
-        directory = prepare_output_dir(directory, name)
-        #if args.auto:
-        #    automatic(string)
-        #el
-        if resume_all:
-            resume_all()
-            sys.exit()
-        # running
-        if resume:
-            resume(directory, logfile)
-            logging.info('missing was %s', missing)
-        elif missing:
-            download_missing(directory, logfile)
-            logging.info('resume was %s', resume)
-        else:
-            cls = find_class_from_url(name)
-            worker = cls(directory, logfile)
-            #worker = Mangareader(directory, logfile)
-            #worker.run(url)
-            worker.start(name)
+        for dd in os.path.listdir(global_mangadir):
+            for d in os.path.join(global_mangadir, dd):
+                os.chdir(d)
+                logging.info('Working in {}.'.format(os.path.realpath(
+                        os.path.curdir)))
+                resume(os.path.join(global_mangadir, d), 'manga.log')
 
 
     def join_threads():
@@ -653,11 +567,4 @@ if __name__ == '__main__':
         pass
 
 
-    args = parse_comand_line()
-    # set global variables from cammand line values
-    #quiet = args.quiet
-    #debug = args.debug
-    parse_args_version_3(**args.__dict__)
-    join_threads()
-    logging.debug('Exiting ...')
-
+    main()
