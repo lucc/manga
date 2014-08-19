@@ -72,9 +72,9 @@ def download_image(key, url, filename, logger):
         os.remove(filename)
         logging.info(PROG + ': ' + timestring() + ' downloading failed: ' +
                 ' '.join(logger.log[key]))
-        logger.remove(key)
+        #logger.remove(key)
         return
-    logger.remove(key)
+    #logger.remove(key)
 
 
 def find_class_from_url(url):
@@ -234,9 +234,6 @@ class SiteHandler():
         logfile = os.path.realpath(os.path.join(directory, logfile))
         self.log = BaseLogger(logfile, quiet)
         signal.signal(signal.SIGTERM, self.log.cleanup)
-        # We can also try to implement a fifo.  This idea is not yet fully
-        # developed.
-        #self.fifo = list()
         # This is not optimal: try to not change the dir.
         os.chdir(directory)
 
@@ -268,16 +265,13 @@ class SiteHandler():
                 str(cls.extract_page_nr(html)) + '.' +
                 os.path.splitext(cls.extract_img_url(html))[1]).lower()
 
-    @classmethod
-    #def extract_image_extension(cls, html):
-    #    return .split('.')[-1]
 
     @classmethod
     def extract_linear(cls, html):
         '''
-        This method returns a tupel of the next url, the image url and the
-        filename to downlowd to.  It will extract these information from the
-        supplied html page inline.
+        This method returns a tupel of a key, the next url, the image url and
+        the filename to downlowd to.  It should extract these information from
+        the supplied html page inline.
         '''
         # This is just a dummy implementation which should be overwritten.
         # The actual implementation should extract these information inline.
@@ -337,10 +331,7 @@ class SiteHandler():
                 key, nexturl, img, filename = \
                         self.__class__.extract_linear(html)
             except AttributeError:
-                #logging.info('This should never happen!')
-                #traceback.print_exception(*sys.exc_info())
                 logging.info('%s seems to be the last page.', url)
-                #logging.info('We cought this but will return here.')
                 return
             self.log.add(key, url, img, filename)
             start_thread(download_image,
@@ -381,13 +372,9 @@ class SiteHandler():
 
 class Mangareader(SiteHandler):
 
-    # class constants
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
 
-    def __init__(self, directory, logfile):
-        debug_enter(Mangareader)
-        super().__init__(directory, logfile)
 
     #def extract_key(html):
     #    debug_enter(Mangareader)
@@ -667,7 +654,7 @@ if __name__ == '__main__':
         #parser.add_argument('url', nargs='+')
         #parser.add_argument('url', nargs='?')
         parser.add_argument('name', nargs='?', metavar='url/name')
-        return parser.parse_args()
+        return parser.parse_args(), parser
 
 
     def prepare_output_dir(directory, string):
@@ -820,7 +807,7 @@ if __name__ == '__main__':
 
 
     def parse_args_version_4(parser, directory=None, name=None, resume=None,
-            logfile=None, string=None, url=None, resume_all=None, missing=None):
+            logfile=None, string=None, url=None, resume_all=None, missing=None, **kwargs):
         directory = prepare_output_dir(directory, name)
         #if args.auto:
         #    automatic(string)
@@ -876,6 +863,6 @@ if __name__ == '__main__':
     # set global variables from cammand line values
     #quiet = args.quiet
     #debug = args.debug
-    parse_args_version_4()
+    parse_args_version_4(parser, **args.__dict__)
     join_threads()
     logging.debug('Exiting ...')
