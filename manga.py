@@ -43,19 +43,6 @@ def timestring():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
 
-def debug_enter(cls, *strings):
-    if debug:
-        name = 'of ' + cls.__name__ if type(cls) is type else ''
-        #if type(cls) is type:
-        #    name = 'of ' + cls.__name__
-        #else:
-        #    name = ''
-        stack = inspect.stack(context=0)
-        logging.debug('Entering %s %s', stack[1][3], name)
-        if strings is not None and len(strings) > 0:
-            logging.debug(' '.join(strings))
-
-
 def start_thread(function, arguments):
     #t = _thread.start_new_thread(function, arguments)
     #return
@@ -64,7 +51,6 @@ def start_thread(function, arguments):
     #threads.append(t)
 
 def download_image(key, url, filename, logger):
-    debug_enter(None)
     #raise NotImplementedError()
     try:
         urllib.request.urlretrieve(url, filename)
@@ -82,7 +68,6 @@ def find_class_from_url(url):
     Parse the given url and try to find a class that can load from that
     domain.  Return the class.
     '''
-    debug_enter(None)
     url = urllib.parse.urlparse(url)
     #logging.debug(str(url))
     defined_classes = SiteHandler.__subclasses__()
@@ -131,7 +116,6 @@ class BaseLogger():
         del self.log[key]
 
     def cleanup(self):
-        debug_enter(BaseLogger)
         self.logfile.close()
         for item in self.log:
             os.remove(item[2])
@@ -165,7 +149,6 @@ class Logger(BaseLogger):
         #del self.quiet
 
     def add(self, chap, count, nr=None, url=None, img=None, filename=None):
-        debug_enter(Logger)
         if nr is None and url is None and img is None and filename is None:
             if chap in self.log:
                 if count != self.log[chap][0]:
@@ -194,7 +177,6 @@ class Logger(BaseLogger):
                     ' -> ' + filename)
 
     def success(self, chap, nr):
-        debug_enter(Logger)
         if chap not in self.log:
             raise BaseException('This key was not present:', chap)
         self.log[chap][nr][3] = True
@@ -205,7 +187,6 @@ class Logger(BaseLogger):
         #        return
 
     def failed(self, chap, nr):
-        debug_enter(Logger)
         if chap not in self.log:
             raise BaseException('This key was not present:', chap)
         self.log[chap][nr][3] = False
@@ -231,7 +212,6 @@ class SiteHandler():
 
 
     def __init__(self, directory, logfile):
-        debug_enter(SiteHandler)
         logfile = os.path.realpath(os.path.join(directory, logfile))
         self.log = BaseLogger(logfile, quiet)
         signal.signal(signal.SIGTERM, self.log.cleanup)
@@ -241,9 +221,8 @@ class SiteHandler():
 
     @classmethod
     def _key(cls, html):
-        debug_enter(SiteHandler)
-        logging.debug('The class argument is %s', cls)
         return str(cls._chapter(html)) + '-' + str(cls._page(html))
+
 
     @classmethod
     def _filename(cls, html):
@@ -277,7 +256,7 @@ class SiteHandler():
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
-                logging.error('%s returned %s', url, e)
+                logging.exception('%s returned %s', url, e)
                 return
             html = BeautifulSoup(request)
             try:
@@ -305,18 +284,18 @@ class SiteHandler():
     def start(self, url, after=False):
         '''Load all images starting at a specific url.  If after is True start
         loading images just after the given url.'''
-        debug_enter(SiteHandler)
         if after:
             try:
                 request = urllib.request.urlopen(url)
             except urllib.error.URLError as e:
-                logging.error('%s returned %s', url, e)
+                logging.exception('%s returned %s', url, e)
                 return
             html = BeautifulSoup(request)
             url = self.__class__._next(html)
             logging.debug('Finished preloading.')
         for key, img, filename in self._crawler(url):
-            logging.debug('Starting thread to load %s to %s.', img, filename)
+            logging.debug('Starting thread to load {} to {}.'.format(img,
+                filename))
             start_thread(download_image, (key, img, filename, None))
 
 
@@ -329,38 +308,32 @@ class Mangareader(SiteHandler):
 
     @classmethod
     def _next(cls, html):
-        debug_enter(cls)
         return cls.expand(html.find(id='img').parent['href'])
 
 
     @classmethod
     def _img(cls, html):
-        debug_enter(cls)
         return html.find(id='img')['src']
 
 
     @classmethod
     def _filename(cls, html):
-        debug_enter(cls)
         return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
                 '.' + cls._img(html).split('.')[-1]
 
 
     @classmethod
     def _chapter(cls, html):
-        debug_enter(cls)
         return int(html.find(id='mangainfo').h1.string.split()[-1])
 
 
     @classmethod
     def _page(cls, html):
-        debug_enter(cls)
         return int(html.find(id='mangainfo').span.string.split()[1])
 
 
     @classmethod
     def _manga(cls, html):
-        debug_enter(cls)
         return re.sub(r'(.*) [0-9]+$', r'\1',
                 html.find(id='mangainfo').h1.string)
 
@@ -373,11 +346,9 @@ class Unixmanga(SiteHandler):
     DOMAIN = 'unixmanga.com'
 
     def __init__(self, directory, logfile):
-        debug_enter(Unixmanga)
         suoer().__init__(directory, logfile)
 
     def extract_next_url(html):
-        debug_enter(Unixmanga)
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
@@ -387,11 +358,9 @@ class Mangafox(SiteHandler):
     PROTOCOL='http'
 
     def __init__(self, directory, logfile):
-        debug_enter(Mangafox)
         super().__init__(directory, logfile)
 
     def extract_next_url(html):
-        debug_enter(Mangafox)
         tmp = html.find(id='viewer').a['href']
         if tmp == "javascript:void(0);":
             return html.find(id='chnav').p.a['href']
@@ -512,7 +481,6 @@ if __name__ == '__main__':
         # automatically if it is not given.
         '''Find the correct directory to save output files to and set
         directory'''
-        debug_enter(None)
 
         #mangadir = os.path.join(os.getenv("HOME"), "comic")
         #if directory == '.':
@@ -538,7 +506,6 @@ if __name__ == '__main__':
 
 
     def resume(directory, logfile):
-        debug_enter(None)
         log = open(logfile, 'r')
         line = log.readlines()[-1]
         log.close()
@@ -550,7 +517,6 @@ if __name__ == '__main__':
 
 
     def resume_all():
-        debug_enter(None)
         for d in [os.path.join(global_mangadir, dd) for dd in
                 os.listdir(global_mangadir)]:
             os.chdir(d)
