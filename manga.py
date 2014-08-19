@@ -72,9 +72,9 @@ def download_image(key, url, filename, logger):
         os.remove(filename)
         logging.info(PROG + ': ' + timestring() + ' downloading failed: ' +
                 ' '.join(logger.log[key]))
-        logger.remove(key)
+        #logger.remove(key)
         return
-    logger.remove(key)
+    #logger.remove(key)
 
 
 def find_class_from_url(url):
@@ -221,27 +221,75 @@ class Logger(BaseLogger):
 class SiteHandler():
 
     # References to be implement in subclasses.
-    # It is better to remove these and use hasattr and getattr instad of an
-    # try-except block in start_at()
-    #def extract_key(html): raise NotImplementedError()
-    #def extract_next_url(html): raise NotImplementedError()
-    #def extract_img_url(html): raise NotImplementedError()
-    #def extract_manga_name(html): raise NotImplementedError()
-    #def load_intelligent(self, url): raise NotImplementedError()
+    PROTOCOL = None
+    DOMAIN = None
+    def _next(html): raise NotImplementedError()
+    def _img(html): raise NotImplementedError()
+    def _manga(html): raise NotImplementedError()
+    def _chapter(html): raise NotImplementedError()
+    def _page(html): raise NotImplementedError()
+
 
     def __init__(self, directory, logfile):
         debug_enter(SiteHandler)
         logfile = os.path.realpath(os.path.join(directory, logfile))
         self.log = BaseLogger(logfile, quiet)
         signal.signal(signal.SIGTERM, self.log.cleanup)
-        # We can also try to implement a fifo.  This idea is not yet fully
-        # developed.
-        #self.fifo = list()
         # This is not optimal: try to not change the dir.
         os.chdir(directory)
 
+
     @classmethod
-    def expand_rel_url(cls, url):
+    def _key(cls, html):
+        debug_enter(SiteHandler)
+        logging.debug('The class argument is %s', cls)
+        return str(cls._chapter(html)) + '-' + str(cls._page(html))
+
+    @classmethod
+    def _filename(cls, html):
+        return ('_'.join(cls._manga(html).split()) + '-' +
+                str(cls._chapter(html)) + '-' +
+                str(cls._page(html)) + '.' +
+                os.path.splitext(cls._img(html))[1]).lower()
+
+
+    @classmethod
+    def _parse(cls, html):
+        '''
+        This method returns a tupel of a key, the next url, the image url and
+        the filename to downlowd to.  It should extract these information from
+        the supplied html page inline.
+        '''
+        # This is just a dummy implementation which should be overwritten.
+        # The actual implementation should extract these information inline.
+        key = cls._key(html)
+        next = cls._next(html)
+        img = cls._img(html)
+        filename = cls._filename(html)
+        return key, next, img, filename
+
+
+    def _crawler(self, url):
+        '''A generator to crawl the site.'''
+        while True:
+            try:
+                request = urllib.request.urlopen(url)
+            except (urllib.request.http.client.BadStatusLine,
+                    urllib.error.HTTPError,
+                    urllib.error.URLError) as e:
+                logging.error('%s returned %s', url, e)
+                return
+            html = BeautifulSoup(request)
+            try:
+                key, url, img, filename = self.__class__._parse(html)
+            except AttributeError:
+                logging.info('%s seems to be the last page.', url)
+                return
+            yield key, img, filename
+
+
+    @classmethod
+    def expand(cls, url):
         '''Expand the given string into a valid URL.  The string is assumed to
         be relative to the site handled by the class cls.'''
         if '://' in url:
@@ -254,279 +302,68 @@ class SiteHandler():
             return cls.PROTOCOL + '://' + cls.DOMAIN + '/' + url
 
 
-    @classmethod
-    def extract_key(cls, html):
+    def start(self, url, after=False):
+        '''Load all images starting at a specific url.  If after is True start
+        loading images just after the given url.'''
         debug_enter(SiteHandler)
-        logging.debug('The class argument is %s', cls)
-        return str(cls.extract_chapter_nr(html)) + '-' + str(
-                cls.extract_page_nr(html))
-
-    @classmethod
-    def extract_filename(cls, html):
-        return ('_'.join(cls.extract_manga_name(html).split()) + '-' +
-                str(cls.extract_chapter_nr(html)) + '-' +
-                str(cls.extract_page_nr(html)) + '.' +
-                os.path.splitext(cls.extract_img_url(html))[1]).lower()
-
-    @classmethod
-    #def extract_image_extension(cls, html):
-    #    return .split('.')[-1]
-
-    @classmethod
-    def extract_linear(cls, html):
-        '''
-        This method returns a tupel of the next url, the image url and the
-        filename to downlowd to.  It will extract these information from the
-        supplied html page inline.
-        '''
-        # This is just a dummy implementation which should be overwritten.
-        # The actual implementation should extract these information inline.
-        key = cls.extract_key(html)
-        nexturl = cls.extract_next_url(html)
-        img = cls.extract_img_url(html)
-        filename = cls.extract_filename(html)
-        return (key, nexturl, img, filename)
-
-    def load_image(self, html, url):
-        debug_enter(SiteHandler)
-        cls = self.__class__
-        try:
-            key = cls.extract_key(html)
-            img = cls.extract_img_url(html)
-            filename = cls.extract_filename(html)
-        except AttributeError:
-            logging.info('%s seems to be the last page.', url)
-            return
-        self.log.add(key, url, img, filename)
-        download_image(key, img, filename, self.log)
-
-    def load_linear(self, url):
-        '''
-        This method loads all images starting at the specified url.  It will
-        walk the sites in a linear manner.  The class with which this method
-        is used needs to implement extract_img_url, extract_filename and
-        extract_next_url.
-        '''
-        debug_enter(SiteHandler)
-        while url is not None:
-            html = BeautifulSoup(urllib.request.urlopen(url))
+        if after:
             try:
-                nexturl = self.__class__.extract_next_url(html)
-            except AttributeError:
+                request = urllib.request.urlopen(url)
+            except urllib.error.URLError as e:
+                logging.error('%s returned %s', url, e)
                 return
-            start_thread(self.load_image, (html, url))
-            url = nexturl
+            html = BeautifulSoup(request)
+            url = self.__class__._next(html)
+            logging.debug('Finished preloading.')
+        for key, img, filename in self._crawler(url):
+            logging.debug('Starting thread to load %s to %s.', img, filename)
+            start_thread(download_image, (key, img, filename, None))
 
-    def load_linear_fast(self, url):
-        '''
-        This method loads all images starting at the specified url.  It will
-        walk the sites in a linear manner.  The necessary information will be
-        extracted in a faster way.
-        '''
-        debug_enter(SiteHandler)
-        while url is not None:
-            try:
-                html = urllib.request.urlopen(url)
-            except (urllib.request.http.client.BadStatusLine,
-                    urllib.error.HTTPError,
-                    urllib.error.URLError) as e:
-                logging.info('%s returned %s', url, e)
-                return
-            html = BeautifulSoup(html)
-            try:
-                key, nexturl, img, filename = \
-                        self.__class__.extract_linear(html)
-            except AttributeError:
-                #logging.info('This should never happen!')
-                #traceback.print_exception(*sys.exc_info())
-                logging.info('%s seems to be the last page.', url)
-                #logging.info('We cought this but will return here.')
-                return
-            self.log.add(key, url, img, filename)
-            start_thread(download_image,
-                    (key, img, filename, self.log))
-            url = nexturl
-
-
-    def start_at(self, url):
-        'Load all images starting at a specific url.'
-        debug_enter(SiteHandler)
-        loader = getattr(self, 'load_intelligent', getattr(self,
-            'load_linear_fast', getattr(self, 'load_linear', None)))
-        if loader is None:
-            raise NotImplementedError(
-                    'There is no function implemented to load anything.')
-        loader(url)
-        #try:
-        #    self.load_intelligent(url)
-        #except NotImplementedError:
-        #    try:
-        #        self.load_linear_fast(url)
-        #    except NotImplementedError:
-        #        self.load_linear(url)
-
-    def start_after(self, url):
-        'Load all images starting at the url after the one specified.'
-        debug_enter(SiteHandler)
-        try:
-            request = urllib.request.urlopen(url)
-        except urllib.error.URLError as e:
-            logging.info('%s returned %s', url, e)
-            return
-        logging.debug('Finished preloading.')
-        html = BeautifulSoup(request)
-        url = self.__class__.extract_next_url(html)
-        self.start_at(url)
 
 
 class Mangareader(SiteHandler):
 
-    # class constants
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
 
-    def __init__(self, directory, logfile):
-        debug_enter(Mangareader)
-        super().__init__(directory, logfile)
 
-    #def extract_key(html):
-    #    debug_enter(Mangareader)
-    #    return str(Mangareader.extract_chapter_nr(html)) + '-' + str(
-    #            Mangareader.extract_page_nr(html))
+    @classmethod
+    def _next(cls, html):
+        debug_enter(cls)
+        return cls.expand(html.find(id='img').parent['href'])
 
-    def extract_next_url(html):
-        debug_enter(Mangareader)
-        return Mangareader.expand_rel_url(html.find(id='img').parent['href'])
 
-    def extract_img_url(html):
-        debug_enter(Mangareader)
+    @classmethod
+    def _img(cls, html):
+        debug_enter(cls)
         return html.find(id='img')['src']
 
-    def extract_filename(html):
-        debug_enter(Mangareader)
-        return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
-                '.' + Mangareader.extract_img_url(html).split('.')[-1]
 
-    def extract_chapter_nr(html):
-        debug_enter(Mangareader)
+    @classmethod
+    def _filename(cls, html):
+        debug_enter(cls)
+        return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
+                '.' + cls._img(html).split('.')[-1]
+
+
+    @classmethod
+    def _chapter(cls, html):
+        debug_enter(cls)
         return int(html.find(id='mangainfo').h1.string.split()[-1])
 
-    def extract_page_nr(html):
-        debug_enter(Mangareader)
+
+    @classmethod
+    def _page(cls, html):
+        debug_enter(cls)
         return int(html.find(id='mangainfo').span.string.split()[1])
 
-    def extract_page_count(html):
-        debug_enter(Mangareader)
-        return len(html.find(id='pageMenu').find_all('option'))
 
-    def extract_page_urls(html):
-        debug_enter(Mangareader)
-        return [Mangareader.expand_rel_url(o['value']) for o in
-                html.find(id='pageMenu').find_all('option')]
+    @classmethod
+    def _manga(cls, html):
+        debug_enter(cls)
+        return re.sub(r'(.*) [0-9]+$', r'\1',
+                html.find(id='mangainfo').h1.string)
 
-    def extract_main_page(html):
-        debug_enter(Mangareader)
-        return Mangareader.expand_rel_url(
-                html.find(id='mangainfo').h2.a['href'])
-
-    def extract_chapter_count(html):
-        # This should be called with the html for the main page.
-        return len(html.find(id='chapterlist').find_all('a'))
-
-    def extract_manga_name(html):
-        debug_enter(Mangareader)
-        c= re.sub(r'(.*) [0-9]+$', r'\1', html.find(id='mangainfo').h1.string)
-        logging.info("so: |" + c + '|')
-        return c
-
-    def extract_linear(html):
-        debug_enter(Mangareader)
-        img_tag = html.find(id='img')
-        mangainfo = html.find(id='mangainfo')
-        key = mangainfo.h1.string.split()[-1] + \
-                mangainfo.span.string.split()[1]
-        nexturl = Mangareader.expand_rel_url(img_tag.parent['href'])
-        img = img_tag['src']
-        filename = re.sub(r'[ -]+', '-', img_tag["alt"]).lower() + '.' + \
-                img.split('.')[-1]
-        return (key, nexturl, img, filename)
-
-    def helper_load_chapter(url, startpage=1):
-        debug_enter(Mangareader)
-        raise NotImplementedError()
-
-    def helper_load_chapter_2(self, manga, chapter, startpage=1, count=0):
-        debug_enter(Mangareader)
-        if count == 0:
-            # we need the count so we will look it up if it was not given
-            html = BeautifulSoup(urllib.request.urlopen(
-                    Mangareader.expand_rel_url(manga + '/' + str(chapter))))
-            count = self.extract_page_count(html)
-        for page in range(startpage, count+1):
-            logging.info('xxx '+Mangareader.expand_rel_url(manga + '/' +
-                    str(chapter) + '/' + str(page))+'|')
-            self.helper_load_page_and_image(
-                    Mangareader.expand_rel_url(manga + '/' + str(chapter) +
-                    '/' + str(page)))
-
-    def helper_load_page_and_image(self, url):
-        # TODO Can we push this in the superclass?
-        debug_enter(Mangareader)
-        html = BeautifulSoup(urllib.request.urlopen(url))
-        try:
-            img = Mangareader.extract_img_url(html)
-            filename = Mangareader.extract_filename(html)
-        except AttributeError:
-            logging.info('This should never happen! %s',
-                    '(Comming from Mangareader.helper_load_page_and_image)')
-            traceback.print_exception(*sys.exc_info())
-            return
-        self.log.add(url, img, filename)
-        download_image(img, filename)
-
-    def load_intelligent_1(self, url):
-        raise NotImplementedError("TODO")
-        debug_enter(Mangareader)
-        while url is not None:
-            html = BeautifulSoup(urllib.request.urlopen(url))
-            try:
-                pagenr = Mangareader.extract_page_nr(html)
-                pagecount = Mangareader.extract_page_count(html)
-                chapternr = Mangareader.extract_chapter_nr(html)
-                nexturl = Mangareader.extract_next_url(html)
-            except AttributeError:
-                logging.info('%s seems to be the last page.', url)
-                return
-            self.log.add
-            url = nexturl
-            #self.log.add(url, img, filename)
-            #for pnr in range(pagenr, pagecount):
-            #    _thread.start_new_thread(Mangareader.intelligent_load_helper,
-            #            (
-            #_thread.start_new_thread(Mangareader.intelligent_load_helper,
-            #        (chapternr, pagenr, pagecount))
-        raise NotImplementedError()
-
-    def load_intelligent_2(self, url):
-        debug_enter(Mangareader)
-        html = BeautifulSoup(urllib.request.urlopen(url))
-        chapternr = Mangareader.extract_chapter_nr(html)
-        pagenr = Mangareader.extract_page_nr(html)
-        pagecount = Mangareader.extract_page_count(html)
-        manga = Mangareader.extract_manga_name(html)
-        main = Mangareader.extract_main_page(html)
-        main_html = BeautifulSoup(urllib.request.urlopen(main))
-        #_thread.start_new_thread(Mangareader.helper_load_chapter_2, (manga,
-        #        chapternr, pagenr, pagecount))
-        self.helper_load_chapter_2(manga,chapternr,pagenr, pagecount)
-        for chapter in range(chapternr+1,
-                Mangareader.extract_chapter_count(main_html)+1):
-        #    _thread.start_new_thread(Mangareader.helper_load_chapter_2,
-        #            (manga, chapter))
-            Mangareader.helper_load_chapter_2(manga, chapter )
-
-#assigning the current function
-#Mangareader.load_intelligent = Mangareader.load_intelligent_1
 
 
 class Unixmanga(SiteHandler):
@@ -667,7 +504,7 @@ if __name__ == '__main__':
         #parser.add_argument('url', nargs='+')
         #parser.add_argument('url', nargs='?')
         parser.add_argument('name', nargs='?', metavar='url/name')
-        return parser.parse_args()
+        return parser.parse_args(), parser
 
 
     def prepare_output_dir(directory, string):
@@ -820,7 +657,7 @@ if __name__ == '__main__':
 
 
     def parse_args_version_4(parser, directory=None, name=None, resume=None,
-            logfile=None, string=None, url=None, resume_all=None, missing=None):
+            logfile=None, string=None, url=None, resume_all=None, missing=None, **kwargs):
         directory = prepare_output_dir(directory, name)
         #if args.auto:
         #    automatic(string)
@@ -845,7 +682,7 @@ if __name__ == '__main__':
             worker = cls(directory, logfile)
             #worker = Mangareader(directory, logfile)
             #worker.run(url)
-            worker.start_at(name)
+            worker.start(name)
 
 
     def join_threads():
@@ -876,6 +713,6 @@ if __name__ == '__main__':
     # set global variables from cammand line values
     #quiet = args.quiet
     #debug = args.debug
-    parse_args_version_4()
+    parse_args_version_4(parser, **args.__dict__)
     join_threads()
     logging.debug('Exiting ...')
