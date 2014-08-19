@@ -43,6 +43,15 @@ def timestring():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
 
+def check_url(string):
+    '''Check if the given string can be used as an url.  Return the string
+    unchanged, if so.'''
+    url = urllib.parse.urlparse(string)
+    if url.netloc is None or url.netloc == '':
+        raise BaseException('This url is no good.')
+    return string
+
+
 def find_class_from_url(url):
     '''
     Parse the given url and try to find a class that can load from that
@@ -479,7 +488,8 @@ if __name__ == '__main__':
                 version=VERSION_STRING, help='print version information')
         #parser.add_argument('url', nargs='+')
         #parser.add_argument('url', nargs='?')
-        parser.add_argument('name', nargs='?', metavar='url/name')
+        parser.add_argument('name', nargs='?', metavar='url/name',
+                type=check_url)
         return parser.parse_args(), parser
 
 
@@ -689,3 +699,4 @@ if __name__ == '__main__':
     parse_args_version_4(parser, **args.__dict__)
     join_threads()
     logging.debug('Exiting ...')
+
