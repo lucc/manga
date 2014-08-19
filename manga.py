@@ -25,10 +25,8 @@ VERSION_STRING = PROG + ' ' + str(MAIOR_VERSION) + '.' + str(MINOR_VERSION)
 # variables
 quiet = True
 debug = False
-global_mangadir = os.getenv("MANGADIR")
-if global_mangadir is None or global_mangadir == "":
-    global_mangadir = os.path.join(os.getenv("HOME"), "comic")
-global_mangadir = os.path.realpath(global_mangadir)
+global_mangadir = os.path.realpath(os.getenv("MANGADIR") or
+        os.path.join(os.getenv("HOME"), "comic"))
 logging_levels = {
         'DEBUG': logging.DEBUG,
         'INFO': logging.INFO,
@@ -490,7 +488,19 @@ if __name__ == '__main__':
         #parser.add_argument('url', nargs='?')
         parser.add_argument('name', nargs='?', metavar='url/name',
                 type=check_url)
-        return parser.parse_args(), parser
+        args = parser.parse_args()
+        if args.resume and (args.name is not None or args.missing):
+            parser.error('You can only use -r or -m or give an url.')
+        elif not args.resume and args.name is None and not args.missing:
+            parser.error('You must specify -r or -m or an url.')
+        logging.basicConfig(
+                #format='%(filename)s [%(levelname)s]: %(msg)s',
+                format='%(levelname)s: %(msg)s',
+                level=args.loglevel
+                )
+        logging.debug(
+                'The parsed command line arguments are {}.'.format(args))
+        return args
 
 
     def prepare_output_dir(directory, string):
@@ -551,50 +561,17 @@ if __name__ == '__main__':
                 logging.critical('The fucking ERROR!')
 
 
-    def parse_args_version_1(parser, directory=None, url=None, resume=None, logfile=None):
-        directory = prepare_output_dir(directory, url)
-        #if args.auto:
-        #    automatic(args.string)
-        #el
-        if resume and url is not None:
-            parser.error('You can only use -r or give an url.')
-        elif not resume and url is None:
-            parser.error('You must specify -r or an url.')
-        logging.info(args)
-        # running
-        if resume:
-            resume(directory, logfile)
-        else:
-            cls = find_class_from_url(url)
-            worker = cls(directory, logfile)
-            #worker = Mangareader(directory, logfile)
-            #worker.run(url)
-            worker.start_at(url)
-
-
-    def parse_args_version_2(parser, directory=None, name=None, resume=None,
-            logfile=None):
+    def parse_args_version_1(directory=None, name=None, resume=None, logfile=None):
         directory = prepare_output_dir(directory, name)
-        #if args.auto:
-        #    automatic(args.string)
-        #el
-        if resume and name is not None:
-            parser.error('You can only use -r or give an url.')
-        elif not resume and name is None:
-            parser.error('You must specify -r or an url.')
-        logging.debug(args)
-        # running
         if resume:
             resume(directory, logfile)
         else:
             cls = find_class_from_url(name)
             worker = cls(directory, logfile)
-            #worker = Mangareader(directory, logfile)
-            #worker.run(url)
             worker.start_at(name)
 
 
-    def parse_args_version_3(parser, directory=None, name=None, resume=None,
+    def parse_args_version_2(directory=None, name=None, resume=None,
             logfile=None, string=None, url=None):
         # Define the base directory for the directory to load to.
         mangadir = '.'
@@ -623,11 +600,6 @@ if __name__ == '__main__':
         #if args.auto:
         #    automatic(string)
         #el
-        if resume and url is not None:
-            parser.error('You can only use -r or give an url.')
-        elif not resume and url is None:
-            parser.error('You must specify -r or an url.')
-        logging.info(args)
         # running
         if resume:
             resume(directory, logfile)
@@ -639,7 +611,7 @@ if __name__ == '__main__':
             worker.start_at(url)
 
 
-    def parse_args_version_4(parser, directory=None, name=None, resume=None,
+    def parse_args_version_3(directory=None, name=None, resume=None,
             logfile=None, string=None, url=None, resume_all=None, missing=None, **kwargs):
         directory = prepare_output_dir(directory, name)
         #if args.auto:
@@ -648,11 +620,6 @@ if __name__ == '__main__':
         if resume_all:
             resume_all()
             sys.exit()
-        elif resume and (name is not None or missing):
-            parser.error('You can only use -r or -m or give an url.')
-        elif not resume and name is None and not missing:
-            parser.error('You must specify -r or -m or an url.')
-        logging.debug(args)
         # running
         if resume:
             resume(directory, logfile)
@@ -686,17 +653,11 @@ if __name__ == '__main__':
         pass
 
 
-    args, parser = parse_comand_line()
-    # defining the argument parser
-    logging.basicConfig(
-            #format='%(filename)s [%(levelname)s]: %(msg)s',
-            format='%(levelname)s: %(msg)s',
-            level=args.loglevel
-            )
+    args = parse_comand_line()
     # set global variables from cammand line values
     #quiet = args.quiet
     #debug = args.debug
-    parse_args_version_4(parser, **args.__dict__)
+    parse_args_version_3(**args.__dict__)
     join_threads()
     logging.debug('Exiting ...')
 
