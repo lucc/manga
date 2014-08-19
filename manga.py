@@ -68,115 +68,11 @@ def download_missing(directory, logfile):
     directory.
     '''
     logfile = open(logfile, 'r')
-    logger = BaseLogger('/dev/null', quiet)
     for index, line in enumerate(logfile.readlines()):
         url, img, filename = line.split(' ', 2)
         if not os.path.exists(filename):
             start_thread(download_image, (index, img, filename, logger))
 
-
-class BaseLogger():
-
-    def __init__(self, logfile, quiet=False):
-        self.log = dict()
-        self.logfile = open(logfile, 'a')
-        self.quiet = quiet
-
-    def __del__(self):
-        self.cleanup()
-
-    def add(self, key, url, img, filename):
-        self.log[key] = (url, img, filename)
-        self.logfile.write(' '.join(self.log[key]) + '\n')
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
-                    ' -> ' + filename)
-
-    def remove(self, key):
-        del self.log[key]
-
-    def cleanup(self):
-        self.logfile.close()
-        for item in self.log:
-            os.remove(item[2])
-
-
-class Logger(BaseLogger):
-
-    # Some constants to indicate errors and success
-    ERROR = 1
-    FAIL = 2
-    SUCCESS = 3
-
-    #def __init__(self, logfile, quiet=False):
-    #    logfile = open(logfile, 'r')
-    #    self.log = [line.split(' ', 2) for line in logfile.readlines()]
-    #    logfile.close()
-    #    for item in self.log:
-    #        if os.path.exists(item[2]):
-    #            item.append(True)
-    #        else:
-    #            item.append(False)
-    #            _thread.start_new_thread(
-    #                    download_image, (item[1], item[2], self))
-
-    def __del__(self):
-        self.write_logfile()
-        self.super().__del__()
-        # Do I need to del these manually?
-        #del self.logfile
-        #del self.log
-        #del self.quiet
-
-    def add(self, chap, count, nr=None, url=None, img=None, filename=None):
-        if nr is None and url is None and img is None and filename is None:
-            if chap in self.log:
-                if count != self.log[chap][0]:
-                    raise BaseException(
-                            'Adding chapter twice with different length!')
-                else:
-                    # It is ok to add the chapter agoin with the same length.
-                    return
-            else:
-                self.log[chap] = [count for i in range(count+1)]
-        elif nr is None or url is None or img is None or filename is None:
-            raise BaseException('Missing parameter!')
-        elif chap in self.log:
-            if self.log[chap][0] != count:
-                raise BaseException('Inconsistend parameter!')
-            elif self.log[chap][nr] != count and self.log[chap][nr][0:3] != \
-                    [url, img, filename]:
-                raise BaseException('Adding item twice.')
-            else:
-                self.log[chap][nr] = [url, img, filename, None]
-        else:
-            self.log[chap] = [count for i in range(count+1)]
-            self.log[chap][nr] = [url, img, filename, None]
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
-                    ' -> ' + filename)
-
-    def success(self, chap, nr):
-        if chap not in self.log:
-            raise BaseException('This key was not present:', chap)
-        self.log[chap][nr][3] = True
-        ## By now we only remove the item maybe we will do more in the future.
-        #for item in self.log:
-        #    if item[2] == filename:
-        #        self.log.remove(item)
-        #        return
-
-    def failed(self, chap, nr):
-        if chap not in self.log:
-            raise BaseException('This key was not present:', chap)
-        self.log[chap][nr][3] = False
-        ## By now we only remove the item maybe we will do more in the future.
-        #for item in self.log:
-        #    if item[2] == filename:
-        #        self.log.remove(item)
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + 'download failed: ' +
-                    item[1] + ' -> ' + item[2])
 
 
 class SiteHandler():
@@ -193,8 +89,7 @@ class SiteHandler():
 
     def __init__(self, directory, logfile):
         logfile = os.path.realpath(os.path.join(directory, logfile))
-        self.log = BaseLogger(logfile, quiet)
-        signal.signal(signal.SIGTERM, self.log.cleanup)
+        #signal.signal(signal.SIGTERM, self.log.cleanup)
         # This is not optimal: try to not change the dir.
         os.chdir(directory)
 
@@ -236,9 +131,6 @@ class SiteHandler():
         except urllib.error.ContentTooShortError:
             os.remove(filename)
             logging.exception('Could not download %s to %s.', url, filename)
-            #logger.remove(key)
-            #return
-        #logger.remove(key)
 
 
     @staticmethod
