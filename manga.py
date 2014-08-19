@@ -43,40 +43,13 @@ def timestring():
     return datetime.datetime.now().strftime('%H:%M:%S')
 
 
-def start_thread(function, arguments):
-    #t = _thread.start_new_thread(function, arguments)
-    #return
-    t = threading.Thread(target=function, args=arguments)
-    t.start()
-    #threads.append(t)
-
-def download_image(key, url, filename, logger):
-    #raise NotImplementedError()
-    try:
-        urllib.request.urlretrieve(url, filename)
-    except urllib.error.ContentTooShortError:
-        os.remove(filename)
-        logging.info(PROG + ': ' + timestring() + ' downloading failed: ' +
-                ' '.join(logger.log[key]))
-        #logger.remove(key)
-        return
-    #logger.remove(key)
-
-
 def find_class_from_url(url):
     '''
     Parse the given url and try to find a class that can load from that
     domain.  Return the class.
     '''
-    url = urllib.parse.urlparse(url)
-    #logging.debug(str(url))
-    defined_classes = SiteHandler.__subclasses__()
-    #logging.debug(str(defined_classes))
-    if url.netloc is None or url.netloc == '':
-        raise BaseException('This url is no good.')
-    for cls in defined_classes:
-        if url.netloc.split('.')[-2:] == cls.DOMAIN.split('.')[-2:]:
-            logging.debug('Found correct subclass: %s', cls)
+    for cls in SiteHandler.__subclasses__():
+        if cls.can_load(url):
             return cls
     raise NotImplementedError(
             'There is no class available to work with this url.')
@@ -248,6 +221,28 @@ class SiteHandler():
         return key, next, img, filename
 
 
+    @staticmethod
+    def _download(key, url, filename, logger):
+        '''Download the url to the given filename.'''
+        try:
+            urllib.request.urlretrieve(url, filename)
+        except urllib.error.ContentTooShortError:
+            os.remove(filename)
+            logging.exception('Could not download %s to %s.', url, filename)
+            #logger.remove(key)
+            #return
+        #logger.remove(key)
+
+
+    @staticmethod
+    def _thread(function, arguments):
+        #t = _thread.start_new_thread(function, arguments)
+        #return
+        t = threading.Thread(target=function, args=arguments)
+        t.start()
+        #threads.append(t)
+
+
     def _crawler(self, url):
         '''A generator to crawl the site.'''
         while True:
@@ -281,6 +276,18 @@ class SiteHandler():
             return cls.PROTOCOL + '://' + cls.DOMAIN + '/' + url
 
 
+    @classmethod
+    def can_load(cls, url):
+        '''Return True if this class can load from the given url, False
+        otherwise.'''
+        if type(url) is not urllib.parse.ParseResult:
+            url = urllib.parse.urlparse(url)
+        if url.netloc.split('.')[-2:] == cls.DOMAIN.split('.')[-2:]:
+            logging.debug('Found correct subclass: {}'.format(cls))
+            return True
+        return False
+
+
     def start(self, url, after=False):
         '''Load all images starting at a specific url.  If after is True start
         loading images just after the given url.'''
@@ -296,7 +303,7 @@ class SiteHandler():
         for key, img, filename in self._crawler(url):
             logging.debug('Starting thread to load {} to {}.'.format(img,
                 filename))
-            start_thread(download_image, (key, img, filename, None))
+            self._thread(self._download, (key, img, filename, None))
 
 
 
@@ -348,7 +355,7 @@ class Unixmanga(SiteHandler):
     def __init__(self, directory, logfile):
         suoer().__init__(directory, logfile)
 
-    def extract_next_url(html):
+    def _next(html):
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
@@ -360,7 +367,7 @@ class Mangafox(SiteHandler):
     def __init__(self, directory, logfile):
         super().__init__(directory, logfile)
 
-    def extract_next_url(html):
+    def _next(html):
         tmp = html.find(id='viewer').a['href']
         if tmp == "javascript:void(0);":
             return html.find(id='chnav').p.a['href']
@@ -373,24 +380,24 @@ class Mangafox(SiteHandler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
-    def extract_key(html): raise NotImplementedError()
+    def _key(html): raise NotImplementedError()
 
-    def extract_img_url(html):
+    def _img(html):
         #return html.find(id='viewer').a.img['src']
         return html.find(id='image')['src']
 
-    def extract_filename(html):
-        keys = extract_key_helper(html)
+    def _filename(html):
+        keys = _key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
-                extract_img_url(html).split('.')[-1]
+                _img(html).split('.')[-1]
 
-    def extract_chapter_nr(html):
-        return extract_key_helper()[2]
+    def _chapter(html):
+        return _key_helper()[2]
 
-    def extract_page_nr(html):
-        return extract_key_helper()[3]
+    def _page(html):
+        return _key_helper()[3]
 
-    def extract_key_helper(html):
+    def _key_helper(html):
         for tmp in html.findAll('link'):
             if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
                 val = tmp['href'].split('/')
