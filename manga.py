@@ -26,8 +26,6 @@ DECREMENT = 1
 logging.USER = BASE - DECREMENT
 
 # variables
-quiet = True
-debug = False
 global_mangadir = os.path.realpath(os.getenv("MANGADIR") or
         os.path.join(os.getenv("HOME"), "comic"))
 logging_levels = {
