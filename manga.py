@@ -21,6 +21,9 @@ MAIOR_VERSION = 0
 MINOR_VERSION = 2
 PROG = os.path.basename(sys.argv[0])
 VERSION_STRING = PROG + ' ' + str(MAIOR_VERSION) + '.' + str(MINOR_VERSION)
+BASE = logging.INFO
+DECREMENT = 1
+logging.USER = BASE - DECREMENT
 
 # variables
 quiet = True
@@ -55,7 +58,7 @@ def find_class_from_url(url):
     Parse the given url and try to find a class that can load from that
     domain.  Return the class.
     '''
-    for cls in SiteHandler.__subclasses__():
+    for cls in Crawler.__subclasses__():
         if cls.can_load(url):
             return cls
     raise NotImplementedError(
@@ -68,118 +71,108 @@ def download_missing(directory, logfile):
     directory.
     '''
     logfile = open(logfile, 'r')
-    logger = BaseLogger('/dev/null', quiet)
     for index, line in enumerate(logfile.readlines()):
         url, img, filename = line.split(' ', 2)
         if not os.path.exists(filename):
             start_thread(download_image, (index, img, filename, logger))
 
 
-class BaseLogger():
+class LoggingFilter():
 
-    def __init__(self, logfile, quiet=False):
-        self.log = dict()
-        self.logfile = open(logfile, 'a')
-        self.quiet = quiet
+    '''A filter to select only the logging messages of a predefined
+    severity.'''
 
-    def __del__(self):
-        self.cleanup()
-
-    def add(self, key, url, img, filename):
-        self.log[key] = (url, img, filename)
-        self.logfile.write(' '.join(self.log[key]) + '\n')
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
-                    ' -> ' + filename)
-
-    def remove(self, key):
-        del self.log[key]
-
-    def cleanup(self):
-        self.logfile.close()
-        for item in self.log:
-            os.remove(item[2])
+    def __init__(self, base=BASE, decrement=DECREMENT):
+        '''Set up the filter with a base severity and a decrement (positive
+        integer).'''
+        self._base = base
+        self._decrement = decrement
 
 
-class Logger(BaseLogger):
+    def filter(self, record):
+        '''Filter the record.  Only returnes True for records of
+        self._base-self._decrement.'''
+        return self._base - self._decrement == record.level
 
-    # Some constants to indicate errors and success
-    ERROR = 1
-    FAIL = 2
-    SUCCESS = 3
 
-    #def __init__(self, logfile, quiet=False):
-    #    logfile = open(logfile, 'r')
-    #    self.log = [line.split(' ', 2) for line in logfile.readlines()]
-    #    logfile.close()
-    #    for item in self.log:
-    #        if os.path.exists(item[2]):
-    #            item.append(True)
-    #        else:
-    #            item.append(False)
-    #            _thread.start_new_thread(
-    #                    download_image, (item[1], item[2], self))
 
-    def __del__(self):
-        self.write_logfile()
-        self.super().__del__()
-        # Do I need to del these manually?
-        #del self.logfile
-        #del self.log
-        #del self.quiet
+class Loader():
 
-    def add(self, chap, count, nr=None, url=None, img=None, filename=None):
-        if nr is None and url is None and img is None and filename is None:
-            if chap in self.log:
-                if count != self.log[chap][0]:
-                    raise BaseException(
-                            'Adding chapter twice with different length!')
-                else:
-                    # It is ok to add the chapter agoin with the same length.
+    '''The manager to organize the threads that will download the pages to
+    find the image urls and that will download the actual images.'''
+
+    def __init__(self, directory, logfile, url, queue_size=10, threads=5):
+        """@todo: to be defined1.
+
+        :directory: @todo
+        :logfile: @todo
+        :url: @todo
+
+        """
+        self._directory = directory
+        self._logfile = logfile
+        self._url = url
+        self._queue = queue.Queue(queue_size)
+        self._producer_finished = threading.Event()
+        self._threads = threads
+        #filelogger = logging.FileHandler(os.path.join(directory, logfile))
+        #filelogger.setLevel(logging.USER)
+        #formatter = logging.Formatter('%(url)s %(img)s %(file)s')
+        #filelogger.setFormatter(formatter)
+        #filelogger.addFilter(LoggingFilter())
+        #logging.getLogger('').addHandler(filelogger)
+        cls = find_class_from_url(url)
+        self._worker = cls(self._queue, self._producer_finished)
+
+
+    def _download(self, url, filename):
+        '''Download the url to the given filename.'''
+        try:
+            urllib.request.urlretrieve(url, os.path.join(self._directory,
+                    filename))
+        except urllib.error.ContentTooShortError:
+            os.remove(filename)
+            logging.exception('Could not download %s to %s.', url, filename)
+        else:
+            logging.info('Done: {} -> {}'.format(url, filename))
+            # TODO write info to logfile
+
+
+    @staticmethod
+    def _thread(function, arguments=tuple()):
+        '''Start the given function with the arguments in a new thread.'''
+        t = threading.Thread(target=function, args=arguments)
+        t.start()
+
+
+    def _load_images(self):
+        """Repeatedly get urls and filenames from the queue and load them."""
+        while True:
+            try:
+                # TODO set a reasonable timeout
+                key, url, filename = self._queue.get(timeout=2)
+            except queue.Empty:
+                logging.debug('Could not get item from queue.')
+                if self._producer_finished.is_set():
                     return
             else:
-                self.log[chap] = [count for i in range(count+1)]
-        elif nr is None or url is None or img is None or filename is None:
-            raise BaseException('Missing parameter!')
-        elif chap in self.log:
-            if self.log[chap][0] != count:
-                raise BaseException('Inconsistend parameter!')
-            elif self.log[chap][nr] != count and self.log[chap][nr][0:3] != \
-                    [url, img, filename]:
-                raise BaseException('Adding item twice.')
-            else:
-                self.log[chap][nr] = [url, img, filename, None]
-        else:
-            self.log[chap] = [count for i in range(count+1)]
-            self.log[chap][nr] = [url, img, filename, None]
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + ' downloading ' + img +
-                    ' -> ' + filename)
-
-    def success(self, chap, nr):
-        if chap not in self.log:
-            raise BaseException('This key was not present:', chap)
-        self.log[chap][nr][3] = True
-        ## By now we only remove the item maybe we will do more in the future.
-        #for item in self.log:
-        #    if item[2] == filename:
-        #        self.log.remove(item)
-        #        return
-
-    def failed(self, chap, nr):
-        if chap not in self.log:
-            raise BaseException('This key was not present:', chap)
-        self.log[chap][nr][3] = False
-        ## By now we only remove the item maybe we will do more in the future.
-        #for item in self.log:
-        #    if item[2] == filename:
-        #        self.log.remove(item)
-        if not self.quiet:
-            logging.info(PROG + ': ' + timestring() + 'download failed: ' +
-                    item[1] + ' -> ' + item[2])
+                self._download(url, filename)
+                self._queue.task_done()
 
 
-class SiteHandler():
+    def start(self, url, after=False):
+        ''''Start the crawler and the image loading function aech in a
+        seperate thread.  Set the crawler up to start at (or just after, if
+        after=True) the given url.'''
+        logging.debug('Starting crawler and {} image loader threads.'.format(
+                self._threads))
+        self._thread(self._worker.start, (url, after))
+        for i in range(self._threads):
+            self._thread(self._load_images)
+
+
+
+class Crawler():
 
     # References to be implement in subclasses.
     PROTOCOL = None
@@ -191,12 +184,9 @@ class SiteHandler():
     def _page(html): raise NotImplementedError()
 
 
-    def __init__(self, directory, logfile):
-        logfile = os.path.realpath(os.path.join(directory, logfile))
-        self.log = BaseLogger(logfile, quiet)
-        signal.signal(signal.SIGTERM, self.log.cleanup)
-        # This is not optimal: try to not change the dir.
-        os.chdir(directory)
+    def __init__(self, queue, end_event):
+        self._queue = queue
+        self._done = end_event
 
 
     @classmethod
@@ -219,8 +209,8 @@ class SiteHandler():
         the filename to downlowd to.  It should extract these information from
         the supplied html page inline.
         '''
-        # This is just a dummy implementation which should be overwritten.
-        # The actual implementation should extract these information inline.
+        # This is just a dummy implementation which could be overwritten.
+        # The actual implementation can extract these information inline.
         key = cls._key(html)
         next = cls._next(html)
         img = cls._img(html)
@@ -228,41 +218,24 @@ class SiteHandler():
         return key, next, img, filename
 
 
-    @staticmethod
-    def _download(key, url, filename, logger):
-        '''Download the url to the given filename.'''
-        try:
-            urllib.request.urlretrieve(url, filename)
-        except urllib.error.ContentTooShortError:
-            os.remove(filename)
-            logging.exception('Could not download %s to %s.', url, filename)
-            #logger.remove(key)
-            #return
-        #logger.remove(key)
-
-
-    @staticmethod
-    def _thread(function, arguments):
-        t = threading.Thread(target=function, args=arguments)
-        t.start()
-        #threads.append(t)
-
-
     def _crawler(self, url):
         '''A generator to crawl the site.'''
         while True:
             try:
+                logging.debug('Loading page {}.'.format(url))
                 request = urllib.request.urlopen(url)
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
                 logging.exception('%s returned %s', url, e)
+                self._done.set()
                 return
             html = BeautifulSoup(request)
             try:
                 key, url, img, filename = self.__class__._parse(html)
             except AttributeError:
-                logging.info('%s seems to be the last page.', url)
+                logging.info('{} seems to be the last page.'.format(url))
+                self._done.set()
                 return
             yield key, img, filename
 
@@ -294,8 +267,9 @@ class SiteHandler():
 
 
     def start(self, url, after=False):
-        '''Load all images starting at a specific url.  If after is True start
-        loading images just after the given url.'''
+        '''Crawl the site starting at url (or just after url if after=True)
+        and queue all image urls with their filenames to be download in
+        another thread.'''
         if after:
             try:
                 request = urllib.request.urlopen(url)
@@ -304,15 +278,13 @@ class SiteHandler():
                 return
             html = BeautifulSoup(request)
             url = self.__class__._next(html)
-            logging.debug('Finished preloading.')
         for key, img, filename in self._crawler(url):
-            logging.debug('Starting thread to load {} to {}.'.format(img,
-                filename))
-            self._thread(self._download, (key, img, filename, None))
+            logging.debug('Queueing job {}.'.format(key))
+            self._queue.put((key, img, filename))
 
 
 
-class Mangareader(SiteHandler):
+class Mangareader(Crawler):
 
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
@@ -351,26 +323,22 @@ class Mangareader(SiteHandler):
 
 
 
-class Unixmanga(SiteHandler):
+class Unixmanga(Crawler):
 
     # class constants
     PROTOCOL = 'http'
     DOMAIN = 'unixmanga.com'
-
-    def __init__(self, directory, logfile):
-        suoer().__init__(directory, logfile)
 
     def _next(html):
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
 
-class Mangafox(SiteHandler):
+
+class Mangafox(Crawler):
+
     DOMAIN='mangafox.me'
     PROTOCOL='http'
-
-    def __init__(self, directory, logfile):
-        super().__init__(directory, logfile)
 
     def _next(html):
         tmp = html.find(id='viewer').a['href']
@@ -385,21 +353,27 @@ class Mangafox(SiteHandler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
+
     def _key(html): raise NotImplementedError()
+
 
     def _img(html):
         return html.find(id='image')['src']
+
 
     def _filename(html):
         keys = _key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
                 _img(html).split('.')[-1]
 
+
     def _chapter(html):
         return _key_helper()[2]
 
+
     def _page(html):
         return _key_helper()[3]
+
 
     def _key_helper(html):
         for tmp in html.findAll('link'):
@@ -422,6 +396,7 @@ class Mangafox(SiteHandler):
             i = -3
         manga = val[i]
         return (manga, volume, chapter, page)
+
 
 
 if __name__ == '__main__':
@@ -491,7 +466,7 @@ if __name__ == '__main__':
 
         # configure the logger
         logging.basicConfig(
-                format='%(levelname)s: %(msg)s',
+                format='%(levelname)s[%(threadName)s] %(asctime)s: %(msg)s',
                 level=args.loglevel
                 )
         logging.debug(
@@ -511,7 +486,7 @@ if __name__ == '__main__':
                 os.mkdir(directory)
             except FileExistsError:
                 parser.error('Path exists but is not a directory.')
-        logging.debug('Directory set to {}.'.format(directory))
+        logging.debug('Directory set to "{}".'.format(directory))
 
         # start downloading
         if args.resume_all:
@@ -521,9 +496,7 @@ if __name__ == '__main__':
         elif args.missing:
             download_missing(directory, args.logfile)
         else:
-            cls = find_class_from_url(args.name)
-            worker = cls(directory, args.logfile)
-            worker.start(args.name)
+            Loader(directory, args.logfile, args.name).start(args.name)
         join_threads()
         logging.debug('Exiting ...')
         sys.exit()
