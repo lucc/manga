@@ -491,14 +491,11 @@ if __name__ == '__main__':
 
 
     def resume(directory, logfile):
-        log = open(logfile, 'r')
-        line = log.readlines()[-1]
-        log.close()
+        with open(logfile, 'r') as log:
+            line = log.readlines()[-1]
         url = line.split()[0]
-        logging.debug('Found url for resumeing: %s', url)
-        cls = find_class_from_url(url)
-        worker = cls(directory, logfile)
-        worker.start_after(url)
+        logging.debug('Found url for resumeing: {}'.format(url))
+        Loader(directory, logfile, url).start(url, after=True)
 
 
     def resume_all():
