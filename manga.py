@@ -216,7 +216,7 @@ class Crawler():
             try:
                 key, url, img, filename = self.__class__._parse(html)
             except AttributeError:
-                logging.info('%s seems to be the last page.', url)
+                logging.info('{} seems to be the last page.'.format(url))
                 return
             yield key, img, filename
 
@@ -448,7 +448,7 @@ if __name__ == '__main__':
 
         # configure the logger
         logging.basicConfig(
-                format='%(levelname)s: %(msg)s',
+                format='%(levelname)s[%(threadName)s] %(asctime)s: %(msg)s',
                 level=args.loglevel
                 )
         logging.debug(
@@ -468,7 +468,7 @@ if __name__ == '__main__':
                 os.mkdir(directory)
             except FileExistsError:
                 parser.error('Path exists but is not a directory.')
-        logging.debug('Directory set to {}.'.format(directory))
+        logging.debug('Directory set to "{}".'.format(directory))
 
         # start downloading
         if args.resume_all:
