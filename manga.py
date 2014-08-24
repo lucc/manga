@@ -98,9 +98,10 @@ class LoggingFilter():
 
 class Loader():
 
-    """Docstring for Loader. """
+    '''The manager to organize the threads that will download the pages to
+    find the image urls and that will download the actual images.'''
 
-    def __init__(self, directory, logfile, url):
+    def __init__(self, directory, logfile, url, queue_size=10, threads=5):
         """@todo: to be defined1.
 
         :directory: @todo
@@ -111,26 +112,54 @@ class Loader():
         self._directory = directory
         self._logfile = logfile
         self._url = url
-        filelogger = logging.FileHandler(os.path.join(directory, logfile))
-        filelogger.setLevel(logging.USER)
-        formatter = logging.Formatter('%(url)s %(img)s %(file)s')
-        filelogger.setFormatter(formatter)
-        filelogger.addFilter(LoggingFilter())
-        logging.getLogger('').addHandler(filelogger)
+        self._queue = queue.Queue(queue_size)
+        self._threads = threads
+        #filelogger = logging.FileHandler(os.path.join(directory, logfile))
+        #filelogger.setLevel(logging.USER)
+        #formatter = logging.Formatter('%(url)s %(img)s %(file)s')
+        #filelogger.setFormatter(formatter)
+        #filelogger.addFilter(LoggingFilter())
+        #logging.getLogger('').addHandler(filelogger)
         cls = find_class_from_url(url)
-        self._worker = cls()
+        self._worker = cls(self._queue)
+
+
+    def _download(self, url, filename):
+        '''Download the url to the given filename.'''
+        try:
+            logging.debug('Starting to load {} to {}.'.format(url, filename))
+            urllib.request.urlretrieve(url, os.path.join(self._directory,
+                    filename))
+        except urllib.error.ContentTooShortError:
+            os.remove(filename)
+            logging.exception('Could not download %s to %s.', url, filename)
+        #logging.log(logging.USER, '',
+        #        extra={'url':None, 'img':url, 'file':filename})
+
+
+    @staticmethod
+    def _thread(function, arguments=tuple()):
+        '''Start the given function with the arguments in a new thread.'''
+        t = threading.Thread(target=function, args=arguments)
+        t.start()
+        #threads.append(t)
+
+
+    def _load_images(self):
+        """Repeatedly get urls and filenames from the queue and load them."""
+        while True:
+            key, url, filename = self._queue.get()
+            self._download(url, filename)
+            self._queue.task_done()
 
 
     def start(self, url, after=False):
-        """Start loading images at the given url.  If after is True load url
-        to find the next url and start loading there.
-
-        :url: @todo
-        :after: @todo
-        :returns: @todo
-
-        """
-        self._worker.start(url, after)
+        #'''Load all images starting at a specific url.  If after is True start
+        #loading images just after the given url.'''
+        self._thread(self._worker.start, (url, after))
+        for i in range(self._threads):
+            logging.debug('Starting image loader thread {}.'.format(i))
+            self._thread(self._load_images())
 
 
 
@@ -146,12 +175,9 @@ class Crawler():
     def _page(html): raise NotImplementedError()
 
 
-    def __init__(self, directory, logfile):
-        logging.debug('', stack_info=True)
-        logfile = os.path.realpath(os.path.join(directory, logfile))
-        #signal.signal(signal.SIGTERM, self.log.cleanup)
-        # This is not optimal: try to not change the dir.
-        os.chdir(directory)
+    def __init__(self, queue):
+        #logging.debug('', stack_info=True)
+        self._queue = queue
 
 
     @classmethod
@@ -174,8 +200,8 @@ class Crawler():
         the filename to downlowd to.  It should extract these information from
         the supplied html page inline.
         '''
-        # This is just a dummy implementation which should be overwritten.
-        # The actual implementation should extract these information inline.
+        # This is just a dummy implementation which could be overwritten.
+        # The actual implementation can extract these information inline.
         key = cls._key(html)
         next = cls._next(html)
         img = cls._img(html)
@@ -183,29 +209,11 @@ class Crawler():
         return key, next, img, filename
 
 
-    @staticmethod
-    def _download(key, url, filename, logger):
-        '''Download the url to the given filename.'''
-        try:
-            urllib.request.urlretrieve(url, filename)
-        except urllib.error.ContentTooShortError:
-            os.remove(filename)
-            logging.exception('Could not download %s to %s.', url, filename)
-        logging.log(logging.USER, '',
-                extra={'url':None, 'img':url, 'file':filename})
-
-
-    @staticmethod
-    def _thread(function, arguments):
-        t = threading.Thread(target=function, args=arguments)
-        t.start()
-        #threads.append(t)
-
-
     def _crawler(self, url):
         '''A generator to crawl the site.'''
         while True:
             try:
+                logging.debug('Starting to load {}.'.format(url))
                 request = urllib.request.urlopen(url)
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
@@ -218,6 +226,7 @@ class Crawler():
             except AttributeError:
                 logging.info('{} seems to be the last page.'.format(url))
                 return
+            logging.debug('Finished loading {}.'.format(url))
             yield key, img, filename
 
 
@@ -248,8 +257,9 @@ class Crawler():
 
 
     def start(self, url, after=False):
-        '''Load all images starting at a specific url.  If after is True start
-        loading images just after the given url.'''
+        '''Crawl the site starting at url (or just after url if after=True)
+        and queue all image urls with their filenames to be download in
+        another thread.'''
         if after:
             try:
                 request = urllib.request.urlopen(url)
@@ -260,9 +270,9 @@ class Crawler():
             url = self.__class__._next(html)
             logging.debug('Finished preloading.')
         for key, img, filename in self._crawler(url):
-            logging.debug('Starting thread to load {} to {}.'.format(img,
-                filename))
-            self._thread(self._download, (key, img, filename, None))
+            logging.debug(
+                    'Queueing image with key {} for downloading.'.format(key))
+            self._queue.put((key, img, filename))
 
 
 
@@ -478,9 +488,7 @@ if __name__ == '__main__':
         elif args.missing:
             download_missing(directory, args.logfile)
         else:
-            cls = find_class_from_url(args.name)
-            worker = cls(directory, args.logfile)
-            worker.start(args.name)
+            Loader(directory, args.logfile, args.name).start(args.name)
         join_threads()
         logging.debug('Exiting ...')
         sys.exit()
