@@ -128,29 +128,28 @@ class Loader():
     def _download(self, url, filename):
         '''Download the url to the given filename.'''
         try:
-            logging.debug('Starting to load {} to {}.'.format(url, filename))
             urllib.request.urlretrieve(url, os.path.join(self._directory,
                     filename))
         except urllib.error.ContentTooShortError:
             os.remove(filename)
             logging.exception('Could not download %s to %s.', url, filename)
-        #logging.log(logging.USER, '',
-        #        extra={'url':None, 'img':url, 'file':filename})
+        else:
+            logging.info('Done: {} -> {}'.format(url, filename))
+            # TODO write info to logfile
 
 
     @staticmethod
     def _thread(function, arguments=tuple()):
         '''Start the given function with the arguments in a new thread.'''
         t = threading.Thread(target=function, args=arguments)
-        logging.debug('Created thread {}.'.format(t.name))
         t.start()
-        #threads.append(t)
 
 
     def _load_images(self):
         """Repeatedly get urls and filenames from the queue and load them."""
         while True:
             try:
+                # TODO set a reasonable timeout
                 key, url, filename = self._queue.get(timeout=2)
             except queue.Empty:
                 logging.debug('Could not get item from queue.')
@@ -162,11 +161,13 @@ class Loader():
 
 
     def start(self, url, after=False):
-        #'''Load all images starting at a specific url.  If after is True start
-        #loading images just after the given url.'''
+        ''''Start the crawler and the image loading function aech in a
+        seperate thread.  Set the crawler up to start at (or just after, if
+        after=True) the given url.'''
+        logging.debug('Starting crawler and {} image loader threads.'.format(
+                self._threads))
         self._thread(self._worker.start, (url, after))
         for i in range(self._threads):
-            logging.debug('Starting image loader thread {}.'.format(i))
             self._thread(self._load_images)
 
 
@@ -184,7 +185,6 @@ class Crawler():
 
 
     def __init__(self, queue, end_event):
-        #logging.debug('', stack_info=True)
         self._queue = queue
         self._done = end_event
 
@@ -222,9 +222,8 @@ class Crawler():
         '''A generator to crawl the site.'''
         while True:
             try:
-                logging.debug('Starting to load {}.'.format(url))
+                logging.debug('Loading page {}.'.format(url))
                 request = urllib.request.urlopen(url)
-                logging.debug('Finished loading {}.'.format(url))
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
@@ -279,10 +278,8 @@ class Crawler():
                 return
             html = BeautifulSoup(request)
             url = self.__class__._next(html)
-            logging.debug('Finished preloading.')
         for key, img, filename in self._crawler(url):
-            logging.debug(
-                    'Queueing image with key {} for downloading.'.format(key))
+            logging.debug('Queueing job {}.'.format(key))
             self._queue.put((key, img, filename))
 
 
