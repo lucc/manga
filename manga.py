@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 
 # imports
-import datetime
-import inspect
 import logging
 import os
-import re
-import signal
-import sys
-# see file:///Users/luc/tmp/python-3.4.1-docs-html/library/concurrency.html
-import threading
 import queue
-import traceback
+import re
+import sys
+import threading
 import urllib.request
 
 from bs4 import BeautifulSoup
@@ -36,10 +31,6 @@ logging_levels = {
         'NORMAL': logging.WARNING,
         'QUIET': logging.ERROR,
         }
-
-
-def timestring():
-    return datetime.datetime.now().strftime('%H:%M:%S')
 
 
 def check_url(string):
@@ -530,12 +521,6 @@ if __name__ == '__main__':
         except:
             logging.info('Could not get current thread. %s',
                     'Not waiting for other threads.')
-
-
-    def interrupt_cleanup():
-        """Stop all threads and write the logfile before exiting.  This
-        function should be called when an interrupt signal is called."""
-        pass
 
 
     main()
