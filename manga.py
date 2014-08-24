@@ -113,6 +113,7 @@ class Loader():
         self._logfile = logfile
         self._url = url
         self._queue = queue.Queue(queue_size)
+        self._producer_finished = threading.Event()
         self._threads = threads
         #filelogger = logging.FileHandler(os.path.join(directory, logfile))
         #filelogger.setLevel(logging.USER)
@@ -121,7 +122,7 @@ class Loader():
         #filelogger.addFilter(LoggingFilter())
         #logging.getLogger('').addHandler(filelogger)
         cls = find_class_from_url(url)
-        self._worker = cls(self._queue)
+        self._worker = cls(self._queue, self._producer_finished)
 
 
     def _download(self, url, filename):
@@ -141,6 +142,7 @@ class Loader():
     def _thread(function, arguments=tuple()):
         '''Start the given function with the arguments in a new thread.'''
         t = threading.Thread(target=function, args=arguments)
+        logging.debug('Created thread {}.'.format(t.name))
         t.start()
         #threads.append(t)
 
@@ -148,9 +150,15 @@ class Loader():
     def _load_images(self):
         """Repeatedly get urls and filenames from the queue and load them."""
         while True:
-            key, url, filename = self._queue.get()
-            self._download(url, filename)
-            self._queue.task_done()
+            try:
+                key, url, filename = self._queue.get(timeout=2)
+            except queue.Empty:
+                logging.debug('Could not get item from queue.')
+                if self._producer_finished.is_set():
+                    return
+            else:
+                self._download(url, filename)
+                self._queue.task_done()
 
 
     def start(self, url, after=False):
@@ -159,7 +167,7 @@ class Loader():
         self._thread(self._worker.start, (url, after))
         for i in range(self._threads):
             logging.debug('Starting image loader thread {}.'.format(i))
-            self._thread(self._load_images())
+            self._thread(self._load_images)
 
 
 
@@ -175,9 +183,10 @@ class Crawler():
     def _page(html): raise NotImplementedError()
 
 
-    def __init__(self, queue):
+    def __init__(self, queue, end_event):
         #logging.debug('', stack_info=True)
         self._queue = queue
+        self._done = end_event
 
 
     @classmethod
@@ -215,18 +224,20 @@ class Crawler():
             try:
                 logging.debug('Starting to load {}.'.format(url))
                 request = urllib.request.urlopen(url)
+                logging.debug('Finished loading {}.'.format(url))
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
                 logging.exception('%s returned %s', url, e)
+                self._done.set()
                 return
             html = BeautifulSoup(request)
             try:
                 key, url, img, filename = self.__class__._parse(html)
             except AttributeError:
                 logging.info('{} seems to be the last page.'.format(url))
+                self._done.set()
                 return
-            logging.debug('Finished loading {}.'.format(url))
             yield key, img, filename
 
 
