@@ -58,7 +58,7 @@ def find_class_from_url(url):
     Parse the given url and try to find a class that can load from that
     domain.  Return the class.
     '''
-    for cls in SiteHandler.__subclasses__():
+    for cls in Crawler.__subclasses__():
         if cls.can_load(url):
             return cls
     raise NotImplementedError(
@@ -134,7 +134,7 @@ class Loader():
 
 
 
-class SiteHandler():
+class Crawler():
 
     # References to be implement in subclasses.
     PROTOCOL = None
@@ -266,7 +266,7 @@ class SiteHandler():
 
 
 
-class Mangareader(SiteHandler):
+class Mangareader(Crawler):
 
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
@@ -305,26 +305,22 @@ class Mangareader(SiteHandler):
 
 
 
-class Unixmanga(SiteHandler):
+class Unixmanga(Crawler):
 
     # class constants
     PROTOCOL = 'http'
     DOMAIN = 'unixmanga.com'
-
-    def __init__(self, directory, logfile):
-        suoer().__init__(directory, logfile)
 
     def _next(html):
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
 
-class Mangafox(SiteHandler):
+
+class Mangafox(Crawler):
+
     DOMAIN='mangafox.me'
     PROTOCOL='http'
-
-    def __init__(self, directory, logfile):
-        super().__init__(directory, logfile)
 
     def _next(html):
         tmp = html.find(id='viewer').a['href']
@@ -339,21 +335,27 @@ class Mangafox(SiteHandler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
+
     def _key(html): raise NotImplementedError()
+
 
     def _img(html):
         return html.find(id='image')['src']
+
 
     def _filename(html):
         keys = _key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
                 _img(html).split('.')[-1]
 
+
     def _chapter(html):
         return _key_helper()[2]
 
+
     def _page(html):
         return _key_helper()[3]
+
 
     def _key_helper(html):
         for tmp in html.findAll('link'):
@@ -376,6 +378,7 @@ class Mangafox(SiteHandler):
             i = -3
         manga = val[i]
         return (manga, volume, chapter, page)
+
 
 
 if __name__ == '__main__':
