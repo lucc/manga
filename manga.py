@@ -20,15 +20,15 @@ logging.USER = BASE - DECREMENT
 
 # variables
 global_mangadir = os.path.realpath(os.getenv("MANGADIR") or
-        os.path.join(os.getenv("HOME"), "comic"))
+                                   os.path.join(os.getenv("HOME"), "comic"))
 logging_levels = {
-        'DEBUG': logging.DEBUG,
-        'INFO': logging.INFO,
-        'VERBOSE': logging.INFO,
-        'WARNING': logging.WARNING,
-        'NORMAL': logging.WARNING,
-        'QUIET': logging.ERROR,
-        }
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'VERBOSE': logging.INFO,
+    'WARNING': logging.WARNING,
+    'NORMAL': logging.WARNING,
+    'QUIET': logging.ERROR,
+    }
 
 
 def check_url(string):
@@ -49,7 +49,7 @@ def find_class_from_url(url):
         if cls.can_load(url):
             return cls
     raise NotImplementedError(
-            'There is no class available to work with this url.')
+        'There is no class available to work with this url.')
 
 
 def download_missing(directory, logfile):
