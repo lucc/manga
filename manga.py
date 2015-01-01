@@ -75,12 +75,10 @@ class LoggingFilter():
         self._base = base
         self._decrement = decrement
 
-
     def filter(self, record):
         '''Filter the record.  Only returnes True for records of
         self._base-self._decrement.'''
         return self._base - self._decrement == record.level
-
 
 
 class Loader():
@@ -111,12 +109,11 @@ class Loader():
         cls = find_class_from_url(url)
         self._worker = cls(self._queue, self._producer_finished)
 
-
     def _download(self, url, filename):
         '''Download the url to the given filename.'''
         try:
             urllib.request.urlretrieve(url, os.path.join(self._directory,
-                    filename))
+                                                         filename))
         except urllib.error.ContentTooShortError:
             os.remove(filename)
             logging.exception('Could not download %s to %s.', url, filename)
@@ -124,13 +121,11 @@ class Loader():
             logging.info('Done: {} -> {}'.format(url, filename))
             # TODO write info to logfile
 
-
     @staticmethod
     def _thread(function, arguments=tuple()):
         '''Start the given function with the arguments in a new thread.'''
         t = threading.Thread(target=function, args=arguments)
         t.start()
-
 
     def _load_images(self):
         """Repeatedly get urls and filenames from the queue and load them."""
@@ -146,17 +141,15 @@ class Loader():
                 self._download(url, filename)
                 self._queue.task_done()
 
-
     def start(self, url, after=False):
         ''''Start the crawler and the image loading function aech in a
         seperate thread.  Set the crawler up to start at (or just after, if
         after=True) the given url.'''
         logging.debug('Starting crawler and {} image loader threads.'.format(
-                self._threads))
+            self._threads))
         self._thread(self._worker.start, (url, after))
         for i in range(self._threads):
             self._thread(self._load_images)
-
 
 
 class Crawler():
@@ -170,16 +163,13 @@ class Crawler():
     def _chapter(html): raise NotImplementedError()
     def _page(html): raise NotImplementedError()
 
-
     def __init__(self, queue, end_event):
         self._queue = queue
         self._done = end_event
 
-
     @classmethod
     def _key(cls, html):
         return str(cls._chapter(html)) + '-' + str(cls._page(html))
-
 
     @classmethod
     def _filename(cls, html):
@@ -187,7 +177,6 @@ class Crawler():
                 str(cls._chapter(html)) + '-' +
                 str(cls._page(html)) + '.' +
                 os.path.splitext(cls._img(html))[1]).lower()
-
 
     @classmethod
     def _parse(cls, html):
@@ -203,7 +192,6 @@ class Crawler():
         img = cls._img(html)
         filename = cls._filename(html)
         return key, next, img, filename
-
 
     def _crawler(self, url):
         '''A generator to crawl the site.'''
@@ -226,7 +214,6 @@ class Crawler():
                 return
             yield key, img, filename
 
-
     @classmethod
     def expand(cls, url):
         '''Expand the given string into a valid URL.  The string is assumed to
@@ -240,7 +227,6 @@ class Crawler():
         else:
             return cls.PROTOCOL + '://' + cls.DOMAIN + '/' + url
 
-
     @classmethod
     def can_load(cls, url):
         '''Return True if this class can load from the given url, False
@@ -251,7 +237,6 @@ class Crawler():
             logging.debug('Found correct subclass: {}'.format(cls))
             return True
         return False
-
 
     def start(self, url, after=False):
         '''Crawl the site starting at url (or just after url if after=True)
@@ -270,44 +255,36 @@ class Crawler():
             self._queue.put((key, img, filename))
 
 
-
 class Mangareader(Crawler):
 
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
 
-
     @classmethod
     def _next(cls, html):
         return cls.expand(html.find(id='img').parent['href'])
-
 
     @classmethod
     def _img(cls, html):
         return html.find(id='img')['src']
 
-
     @classmethod
     def _filename(cls, html):
         return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
-                '.' + cls._img(html).split('.')[-1]
-
+            '.' + cls._img(html).split('.')[-1]
 
     @classmethod
     def _chapter(cls, html):
         return int(html.find(id='mangainfo').h1.string.split()[-1])
 
-
     @classmethod
     def _page(cls, html):
         return int(html.find(id='mangainfo').span.string.split()[1])
 
-
     @classmethod
     def _manga(cls, html):
         return re.sub(r'(.*) [0-9]+$', r'\1',
-                html.find(id='mangainfo').h1.string)
-
+                      html.find(id='mangainfo').h1.string)
 
 
 class Unixmanga(Crawler):
@@ -321,11 +298,10 @@ class Unixmanga(Crawler):
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
 
-
 class Mangafox(Crawler):
 
-    DOMAIN='mangafox.me'
-    PROTOCOL='http'
+    DOMAIN = 'mangafox.me'
+    PROTOCOL = 'http'
 
     def _next(html):
         tmp = html.find(id='viewer').a['href']
@@ -347,35 +323,31 @@ class Mangafox(Crawler):
     def _img(html):
         return html.find(id='image')['src']
 
-
     def _filename(html):
         keys = _key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
-                _img(html).split('.')[-1]
-
+            _img(html).split('.')[-1]
 
     def _chapter(html):
         return _key_helper()[2]
 
-
     def _page(html):
         return _key_helper()[3]
-
 
     def _key_helper(html):
         for tmp in html.findAll('link'):
             if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
                 val = tmp['href'].split('/')
                 break
-        if re.march(r'^[0-9]+\.html$', val[-1]) != None:
+        if re.march(r'^[0-9]+\.html$', val[-1]) is not None:
             page = int(val[-1].split('.')[0])
         else:
             raise BaseException('wrong string while parsing')
-        if re.match(r'^c[0-9]+$', val[-2]) != None:
+        if re.match(r'^c[0-9]+$', val[-2]) is not None:
             chapter = int(val[-2][1:])
         else:
             raise BaseException('wrong string while parsing')
-        if re.match(r'^v[0-9]+$', val[-3]) != None:
+        if re.match(r'^v[0-9]+$', val[-3]) is not None:
             volume = int(val[-3][1:])
             i = -4
         else:
@@ -385,67 +357,71 @@ class Mangafox(Crawler):
         return (manga, volume, chapter, page)
 
 
-
 if __name__ == '__main__':
 
     def main():
         '''Parse the command line, check the resulting namespace, prepare the
         environment and load the images.'''
         import argparse
-        parser = argparse.ArgumentParser(prog=PROG,
-                description="Download manga from some websites.")
+        parser = argparse.ArgumentParser(
+            prog=PROG, description="Download manga from some websites.")
         # output group
         output = parser.add_argument_group(title='Output options')
-        output.add_argument('-l', '--loglevel',
-                type=lambda x: logging_levels[x],
-                default=logging_levels['NORMAL'],
-                choices=logging_levels.keys(),
-                help='specify the logging level')
-        output.add_argument('-x', '--debug', dest='loglevel',
-                action='store_const', const=logging.DEBUG,
-                help='debuging output')
-        output.add_argument('-v', '--verbose', dest='loglevel',
-                action='store_const',
-                const=logging.INFO, help='verbose output')
-        output.add_argument('-q', '--quiet', dest='loglevel',
-                action='store_const',
-                const=logging.CRITICAL, help='supress output')
+        output.add_argument(
+            '-l', '--loglevel', default=logging_levels['NORMAL'],
+            choices=logging_levels.keys(),
+            #type=lambda x: logging_levels[x],
+            help='specify the logging level')
+        output.add_argument(
+            '-x', '--debug', dest='loglevel', action='store_const',
+            const=logging.DEBUG, help='debuging output')
+        output.add_argument(
+            '-v', '--verbose', dest='loglevel', action='store_const',
+            const=logging.INFO, help='verbose output')
+        output.add_argument(
+            '-q', '--quiet', dest='loglevel', action='store_const',
+            const=logging.CRITICAL, help='supress output')
         # general group
         general = parser.add_argument_group(title='General options')
-        general.add_argument('-b', '--background', action='store_true',
-                help='fork to background')
+        general.add_argument(
+            '-b', '--background', action='store_true',
+            help='fork to background')
         # can we hand a function to the parser to check the directory?
         general.add_argument('-d', '--directory', metavar='DIR', default='.',
-                help='the directory to work in')
-        general.add_argument('-f', '--logfile', metavar='LOG',
-                default='manga.log',
-                help='the filename of the logfile to use')
-        general.add_argument('-m', '--load-missing', action='store_true',
-                dest='missing',
-                help='Load all files which are stated in the logfile but ' +
-                'are missing on disk.')
+                             help='the directory to work in')
+        general.add_argument(
+            '-f', '--logfile', metavar='LOG', default='manga.log',
+            help='the filename of the logfile to use')
+        general.add_argument(
+            '-m', '--load-missing', action='store_true', dest='missing',
+            help='''Load all files which are stated in the logfile but are
+            missing on disk.''')
         # unimplemented group
         unimplemented = parser.add_argument_group(
-                'These are not yet implemented')
+            'These are not yet implemented')
         # the idea for 'auto' was to find the manga name and the directory
         # automatically.
-        unimplemented.add_argument('-a', '--auto', action='store_true',
-                default=True, help='do everything automatically')
+        unimplemented.add_argument(
+            '-a', '--auto', action='store_true', default=True,
+            help='do everything automatically')
         # or use the logfile from within for downloading.
-        ## idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
-        unimplemented.add_argument('-A', '--archive',
-                help='display the logfile from within an archive')
+        # idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
+        unimplemented.add_argument(
+            '-A', '--archive',
+            help='display the logfile from within an archive')
         unimplemented.add_argument('--view', help='create a html page')
-        unimplemented.add_argument('-r', '--resume', action='store_true',
-                help='resume from a logfile')
-        unimplemented.add_argument('-R', '--resume-all', action='store_true',
-                help='visit all directorys in the manga dir and resume there')
-        #general group
+        unimplemented.add_argument(
+            '-r', '--resume', action='store_true',
+            help='resume from a logfile')
+        unimplemented.add_argument(
+            '-R', '--resume-all', action='store_true',
+            help='visit all directorys in the manga dir and resume there')
+        # general group
         parser.add_argument('-V', '--version', action='version',
-                version='{} {}.{}.{}'.format(PROG, *__version__),
-                help='print version information')
+                            version='{} {}.{}.{}'.format(PROG, *__version__),
+                            help='print version information')
         parser.add_argument('name', nargs='?', metavar='url/name',
-                type=check_url)
+                            type=check_url)
         args = parser.parse_args()
         if args.resume and (args.name is not None or args.missing):
             parser.error('You can only use -r or -m or give an url.')
@@ -454,17 +430,16 @@ if __name__ == '__main__':
 
         # configure the logger
         logging.basicConfig(
-                format='%(levelname)s[%(threadName)s] %(asctime)s: %(msg)s',
-                level=args.loglevel
-                )
+            format='%(levelname)s[%(threadName)s] %(asctime)s: %(msg)s',
+            level=args.loglevel)
         logging.debug(
-                'The parsed command line arguments are {}.'.format(args))
+            'The parsed command line arguments are {}.'.format(args))
 
         # set up the directory
         directory = args.directory
         # TODO can the directory be retrieved from the manga name?
         mangadir = os.path.curdir
-        if not directory == os.path.curdir and not os.path.sep in directory:
+        if not directory == os.path.curdir and os.path.sep not in directory:
             mangadir = global_mangadir
             directory = os.path.realpath(os.path.join(mangadir, directory))
         if os.path.isdir(directory):
@@ -489,7 +464,6 @@ if __name__ == '__main__':
         logging.debug('Exiting ...')
         sys.exit()
 
-
     def resume(directory, logfile):
         with open(logfile, 'r') as log:
             line = log.readlines()[-1]
@@ -497,15 +471,13 @@ if __name__ == '__main__':
         logging.debug('Found url for resumeing: {}'.format(url))
         Loader(directory, logfile, url).start(url, after=True)
 
-
     def resume_all():
         for dd in os.path.listdir(global_mangadir):
             for d in os.path.join(global_mangadir, dd):
                 os.chdir(d)
                 logging.info('Working in {}.'.format(os.path.realpath(
-                        os.path.curdir)))
+                    os.path.curdir)))
                 resume(os.path.join(global_mangadir, d), 'manga.log')
-
 
     def join_threads():
         try:
@@ -516,7 +488,6 @@ if __name__ == '__main__':
             logging.debug('All threads joined.')
         except:
             logging.info('Could not get current thread. %s',
-                    'Not waiting for other threads.')
-
+                         'Not waiting for other threads.')
 
     main()
