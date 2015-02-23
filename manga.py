@@ -154,6 +154,8 @@ class Loader():
 
 class Crawler():
 
+    '''TODO'''
+
     # References to be implement in subclasses.
     PROTOCOL = None
     DOMAIN = None
