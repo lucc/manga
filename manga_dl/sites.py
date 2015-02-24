@@ -1,43 +1,15 @@
-#!/usr/bin/env python3
-
-# imports
-import logging
-import os
 import queue
-import re
-import sys
 import threading
+import os
 import urllib.request
+import re
+import logging
+
 
 from bs4 import BeautifulSoup
 
-# constants
-__version__ = (0, 2, 0)
-PROG = os.path.basename(sys.argv[0])
-BASE = logging.INFO
-DECREMENT = 1
-logging.USER = BASE - DECREMENT
 
-# variables
-global_mangadir = os.path.realpath(os.getenv("MANGADIR") or
-                                   os.path.join(os.getenv("HOME"), "comic"))
-logging_levels = {
-    'DEBUG': logging.DEBUG,
-    'INFO': logging.INFO,
-    'VERBOSE': logging.INFO,
-    'WARNING': logging.WARNING,
-    'NORMAL': logging.WARNING,
-    'QUIET': logging.ERROR,
-    }
-
-
-def check_url(string):
-    '''Check if the given string can be used as an url.  Return the string
-    unchanged, if so.'''
-    url = urllib.parse.urlparse(string)
-    if url.netloc is None or url.netloc == '':
-        raise BaseException('This url is no good.')
-    return string
+logger = logging.getLogger(__name__)
 
 
 def find_class_from_url(url):
@@ -50,35 +22,6 @@ def find_class_from_url(url):
             return cls
     raise NotImplementedError(
         'There is no class available to work with this url.')
-
-
-def download_missing(directory, logfile):
-    '''
-    Load all images which are mentioned in the logfile but not present in the
-    directory.
-    '''
-    logfile = open(logfile, 'r')
-    for index, line in enumerate(logfile.readlines()):
-        url, img, filename = line.split(' ', 2)
-        if not os.path.exists(filename):
-            start_thread(download_image, (index, img, filename, logger))
-
-
-class LoggingFilter():
-
-    '''A filter to select only the logging messages of a predefined
-    severity.'''
-
-    def __init__(self, base=BASE, decrement=DECREMENT):
-        '''Set up the filter with a base severity and a decrement (positive
-        integer).'''
-        self._base = base
-        self._decrement = decrement
-
-    def filter(self, record):
-        '''Filter the record.  Only returnes True for records of
-        self._base-self._decrement.'''
-        return self._base - self._decrement == record.level
 
 
 class Loader():
@@ -100,12 +43,12 @@ class Loader():
         self._queue = queue.Queue(queue_size)
         self._producer_finished = threading.Event()
         self._threads = threads
-        #filelogger = logging.FileHandler(os.path.join(directory, logfile))
-        #filelogger.setLevel(logging.USER)
-        #formatter = logging.Formatter('%(url)s %(img)s %(file)s')
-        #filelogger.setFormatter(formatter)
-        #filelogger.addFilter(LoggingFilter())
-        #logging.getLogger('').addHandler(filelogger)
+        # filelogger = logging.FileHandler(os.path.join(directory, logfile))
+        # filelogger.setLevel(logging.USER)
+        # formatter = logging.Formatter('%(url)s %(img)s %(file)s')
+        # filelogger.setFormatter(formatter)
+        # filelogger.addFilter(LoggingFilter())
+        # logging.getLogger('').addHandler(filelogger)
         cls = find_class_from_url(url)
         self._worker = cls(self._queue, self._producer_finished)
 
@@ -116,9 +59,9 @@ class Loader():
                                                          filename))
         except urllib.error.ContentTooShortError:
             os.remove(filename)
-            logging.exception('Could not download %s to %s.', url, filename)
+            logger.exception('Could not download %s to %s.', url, filename)
         else:
-            logging.info('Done: {} -> {}'.format(url, filename))
+            logger.info('Done: {} -> {}'.format(url, filename))
             # TODO write info to logfile
 
     @staticmethod
@@ -134,7 +77,7 @@ class Loader():
                 # TODO set a reasonable timeout
                 key, url, filename = self._queue.get(timeout=2)
             except queue.Empty:
-                logging.debug('Could not get item from queue.')
+                logger.debug('Could not get item from queue.')
                 if self._producer_finished.is_set():
                     return
             else:
@@ -145,7 +88,7 @@ class Loader():
         ''''Start the crawler and the image loading function aech in a
         seperate thread.  Set the crawler up to start at (or just after, if
         after=True) the given url.'''
-        logging.debug('Starting crawler and {} image loader threads.'.format(
+        logger.debug('Starting crawler and {} image loader threads.'.format(
             self._threads))
         self._thread(self._worker.start, (url, after))
         for i in range(self._threads):
@@ -159,10 +102,15 @@ class Crawler():
     # References to be implement in subclasses.
     PROTOCOL = None
     DOMAIN = None
+
     def _next(html): raise NotImplementedError()
+
     def _img(html): raise NotImplementedError()
+
     def _manga(html): raise NotImplementedError()
+
     def _chapter(html): raise NotImplementedError()
+
     def _page(html): raise NotImplementedError()
 
     def __init__(self, queue, end_event):
@@ -199,19 +147,19 @@ class Crawler():
         '''A generator to crawl the site.'''
         while True:
             try:
-                logging.debug('Loading page {}.'.format(url))
+                logger.debug('Loading page {}.'.format(url))
                 request = urllib.request.urlopen(url)
             except (urllib.request.http.client.BadStatusLine,
                     urllib.error.HTTPError,
                     urllib.error.URLError) as e:
-                logging.exception('%s returned %s', url, e)
+                logger.exception('%s returned %s', url, e)
                 self._done.set()
                 return
             html = BeautifulSoup(request)
             try:
                 key, url, img, filename = self.__class__._parse(html)
             except AttributeError:
-                logging.info('{} seems to be the last page.'.format(url))
+                logger.info('{} seems to be the last page.'.format(url))
                 self._done.set()
                 return
             yield key, img, filename
@@ -236,7 +184,7 @@ class Crawler():
         if type(url) is not urllib.parse.ParseResult:
             url = urllib.parse.urlparse(url)
         if url.netloc.split('.')[-2:] == cls.DOMAIN.split('.')[-2:]:
-            logging.debug('Found correct subclass: {}'.format(cls))
+            logger.debug('Found correct subclass: {}'.format(cls))
             return True
         return False
 
@@ -248,12 +196,12 @@ class Crawler():
             try:
                 request = urllib.request.urlopen(url)
             except urllib.error.URLError as e:
-                logging.exception('%s returned %s', url, e)
+                logger.exception('%s returned %s', url, e)
                 return
             html = BeautifulSoup(request)
             url = self.__class__._next(html)
         for key, img, filename in self._crawler(url):
-            logging.debug('Queueing job {}.'.format(key))
+            logger.debug('Queueing job {}.'.format(key))
             self._queue.put((key, img, filename))
 
 
@@ -318,9 +266,7 @@ class Mangafox(Crawler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
-
     def _key(html): raise NotImplementedError()
-
 
     def _img(html):
         return html.find(id='image')['src']
@@ -357,139 +303,3 @@ class Mangafox(Crawler):
             i = -3
         manga = val[i]
         return (manga, volume, chapter, page)
-
-
-if __name__ == '__main__':
-
-    def main():
-        '''Parse the command line, check the resulting namespace, prepare the
-        environment and load the images.'''
-        import argparse
-        parser = argparse.ArgumentParser(
-            prog=PROG, description="Download manga from some websites.")
-        # output group
-        output = parser.add_argument_group(title='Output options')
-        output.add_argument(
-            '-l', '--loglevel', default=logging_levels['NORMAL'],
-            choices=logging_levels.keys(),
-            #type=lambda x: logging_levels[x],
-            help='specify the logging level')
-        output.add_argument(
-            '-x', '--debug', dest='loglevel', action='store_const',
-            const=logging.DEBUG, help='debuging output')
-        output.add_argument(
-            '-v', '--verbose', dest='loglevel', action='store_const',
-            const=logging.INFO, help='verbose output')
-        output.add_argument(
-            '-q', '--quiet', dest='loglevel', action='store_const',
-            const=logging.CRITICAL, help='supress output')
-        # general group
-        general = parser.add_argument_group(title='General options')
-        general.add_argument(
-            '-b', '--background', action='store_true',
-            help='fork to background')
-        # can we hand a function to the parser to check the directory?
-        general.add_argument('-d', '--directory', metavar='DIR', default='.',
-                             help='the directory to work in')
-        general.add_argument(
-            '-f', '--logfile', metavar='LOG', default='manga.log',
-            help='the filename of the logfile to use')
-        general.add_argument(
-            '-m', '--load-missing', action='store_true', dest='missing',
-            help='''Load all files which are stated in the logfile but are
-            missing on disk.''')
-        # unimplemented group
-        unimplemented = parser.add_argument_group(
-            'These are not yet implemented')
-        # the idea for 'auto' was to find the manga name and the directory
-        # automatically.
-        unimplemented.add_argument(
-            '-a', '--auto', action='store_true', default=True,
-            help='do everything automatically')
-        # or use the logfile from within for downloading.
-        # idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
-        unimplemented.add_argument(
-            '-A', '--archive',
-            help='display the logfile from within an archive')
-        unimplemented.add_argument('--view', help='create a html page')
-        unimplemented.add_argument(
-            '-r', '--resume', action='store_true',
-            help='resume from a logfile')
-        unimplemented.add_argument(
-            '-R', '--resume-all', action='store_true',
-            help='visit all directorys in the manga dir and resume there')
-        # general group
-        parser.add_argument('-V', '--version', action='version',
-                            version='{} {}.{}.{}'.format(PROG, *__version__),
-                            help='print version information')
-        parser.add_argument('name', nargs='?', metavar='url/name',
-                            type=check_url)
-        args = parser.parse_args()
-        if args.resume and (args.name is not None or args.missing):
-            parser.error('You can only use -r or -m or give an url.')
-        elif not args.resume and args.name is None and not args.missing:
-            parser.error('You must specify -r or -m or an url.')
-
-        # configure the logger
-        logging.basicConfig(
-            format='%(levelname)s[%(threadName)s] %(asctime)s: %(msg)s',
-            level=args.loglevel)
-        logging.debug(
-            'The parsed command line arguments are {}.'.format(args))
-
-        # set up the directory
-        directory = args.directory
-        # TODO can the directory be retrieved from the manga name?
-        mangadir = os.path.curdir
-        if not directory == os.path.curdir and os.path.sep not in directory:
-            mangadir = global_mangadir
-            directory = os.path.realpath(os.path.join(mangadir, directory))
-        if os.path.isdir(directory):
-            pass
-        else:
-            try:
-                os.mkdir(directory)
-            except FileExistsError:
-                parser.error('Path exists but is not a directory.')
-        logging.debug('Directory set to "{}".'.format(directory))
-
-        # start downloading
-        if args.resume_all:
-            resume_all()
-        elif args.resume:
-            resume(directory, args.logfile)
-        elif args.missing:
-            download_missing(directory, args.logfile)
-        else:
-            Loader(directory, args.logfile, args.name).start(args.name)
-        join_threads()
-        logging.debug('Exiting ...')
-        sys.exit()
-
-    def resume(directory, logfile):
-        with open(logfile, 'r') as log:
-            line = log.readlines()[-1]
-        url = line.split()[0]
-        logging.debug('Found url for resumeing: {}'.format(url))
-        Loader(directory, logfile, url).start(url, after=True)
-
-    def resume_all():
-        for dd in os.path.listdir(global_mangadir):
-            for d in os.path.join(global_mangadir, dd):
-                os.chdir(d)
-                logging.info('Working in {}.'.format(os.path.realpath(
-                    os.path.curdir)))
-                resume(os.path.join(global_mangadir, d), 'manga.log')
-
-    def join_threads():
-        try:
-            current = threading.current_thread()
-            for thread in threading.enumerate():
-                if thread != current:
-                    thread.join()
-            logging.debug('All threads joined.')
-        except:
-            logging.info('Could not get current thread. %s',
-                         'Not waiting for other threads.')
-
-    main()
