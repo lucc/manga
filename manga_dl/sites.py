@@ -12,18 +12,6 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
-def find_class_from_url(url):
-    '''
-    Parse the given url and try to find a class that can load from that
-    domain.  Return the class.
-    '''
-    for cls in Crawler.__subclasses__():
-        if cls.can_load(url):
-            return cls
-    raise NotImplementedError(
-        'There is no class available to work with this url.')
-
-
 class Loader():
 
     '''The manager to organize the threads that will download the pages to
@@ -49,7 +37,7 @@ class Loader():
         # filelogger.setFormatter(formatter)
         # filelogger.addFilter(LoggingFilter())
         # logging.getLogger('').addHandler(filelogger)
-        cls = find_class_from_url(url)
+        cls = Crawler.find_subclass(url)
         self._worker = cls(self._queue, self._producer_finished)
 
     def _download(self, url, filename):
@@ -100,8 +88,8 @@ class Crawler():
     '''TODO'''
 
     # References to be implement in subclasses.
-    PROTOCOL = None
-    DOMAIN = None
+    PROTOCOL = ''
+    DOMAIN = ''
 
     def _next(html): raise NotImplementedError()
 
@@ -187,6 +175,25 @@ class Crawler():
             logger.debug('Found correct subclass: {}'.format(cls))
             return True
         return False
+
+    @classmethod
+    def find_subclass(cls, url):
+        """Find a (sub) class that can crawl the given url.  Return the class if
+        it can and raise an Error otherwise.
+
+        :url: the url that has to be crawled
+        :returns: a Crawler subclass
+
+        """
+        if cls.can_load(url):
+            return cls
+        for subcls in cls.__subclasses__():
+            if subcls.can_load(url):
+                return subcls
+        for subcls in cls.__subclasses__():
+            subcls.find_subclass(url)
+        raise NotImplementedError(
+            'There is no class available to work with this url.')
 
     def start(self, url, after=False):
         '''Crawl the site starting at url (or just after url if after=True)
