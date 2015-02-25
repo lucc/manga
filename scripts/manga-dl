@@ -1,4 +1,0 @@
-#!python
-import manga_dl.cli
-import sys
-sys.exit(manga_dl.cli.main())
