@@ -1,3 +1,6 @@
+'''TODO'''
+
+
 import argparse
 import logging
 import os
@@ -5,7 +8,7 @@ import sys
 import threading
 import urllib.parse
 
-from manga_dl.sites import Loader
+from manga_dl.loader import Loader
 from manga_dl import constants
 
 
