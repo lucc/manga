@@ -24,35 +24,6 @@ def check_url(string):
     return string
 
 
-def download_missing(directory, logfile):
-    '''
-    Load all images which are mentioned in the logfile but not present in the
-    directory.
-    '''
-    logfile = open(logfile, 'r')
-    for index, line in enumerate(logfile.readlines()):
-        url, img, filename = line.split(' ', 2)
-        if not os.path.exists(filename):
-            start_thread(download_image, (index, img, filename, logger))
-
-
-def resume(directory, logfile):
-    with open(logfile, 'r') as log:
-        line = log.readlines()[-1]
-    url = line.split()[0]
-    logger.debug('Found url for resumeing: {}'.format(url))
-    Loader(directory, logfile, url).start(url, after=True)
-
-
-def resume_all():
-    for dd in os.path.listdir(constants.directory):
-        for d in os.path.join(constants.directory, dd):
-            os.chdir(d)
-            logger.info('Working in {}.'.format(os.path.realpath(
-                os.path.curdir)))
-            resume(os.path.join(constants.directory, d), 'manga.log')
-
-
 def join_threads():
     try:
         current = threading.current_thread()
@@ -63,16 +34,6 @@ def join_threads():
     except:
         logger.info('Could not get current thread. %s',
                     'Not waiting for other threads.')
-
-
-def start_thread(*args, **kwargs):
-    """Not implemented stub."""
-    raise NotImplementedError()
-
-
-def download_image(*args, **kwargs):
-    """Not implemented stub."""
-    raise NotImplementedError()
 
 
 def main():
@@ -168,13 +129,15 @@ def main():
 
     # start downloading
     if args.resume_all:
-        resume_all()
+        for dd in os.path.listdir(constants.directory):
+            for d in os.path.join(constants.directory, dd):
+                jobs.resume(os.path.join(constants.directory, d))
     elif args.resume:
-        resume(directory, args.logfile)
+        jobs.resume(directory)
     elif args.missing:
-        download_missing(directory, args.logfile)
+        jobs.check(directory)
     else:
-        Loader(directory, args.logfile, args.name).start(args.name)
+        jobs.load(args.name, directory)
     join_threads()
     logger.debug('Exiting ...')
     sys.exit()
