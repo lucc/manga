@@ -8,8 +8,8 @@ import sys
 import threading
 import urllib.parse
 
-from manga_dl.loader import Loader
-from manga_dl import constants
+from . import constants
+from . import jobs
 
 
 logger = logging.getLogger(__name__)
