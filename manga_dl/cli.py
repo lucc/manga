@@ -20,7 +20,7 @@ def check_url(string):
     unchanged, if so.'''
     url = urllib.parse.urlparse(string)
     if url.netloc is None or url.netloc == '':
-        raise BaseException('This url is no good.')
+        raise argparse.ArgumentError('This url is no good.')
     return string
 
 
@@ -44,13 +44,13 @@ def main():
     # output group
     output = parser.add_argument_group(title='Output options')
     output.add_argument(
-        '-x', '--debug', dest='verbose', action='store_const', const=100,
-        help='debuging output')
-    output.add_argument(
-        '-v', '--verbose', action='count', help='verbose output')
+        '-v', '--verbose', action='count', default=1, help='verbose output')
     output.add_argument(
         '-q', '--quiet', dest='verbose', action='store_const', const=0,
         help='supress output')
+    output.add_argument(
+        '-x', '--debug', dest='verbose', action='store_const', const=100,
+        help='debuging output')
     # general group
     general = parser.add_argument_group(title='General options')
     general.add_argument(
