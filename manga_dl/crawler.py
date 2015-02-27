@@ -240,3 +240,26 @@ class Mangafox(Crawler):
             i = -3
         manga = val[i]
         return (manga, volume, chapter, page)
+
+
+class Userfriendly(Crawler):
+
+    DOMAIN = 'ars.userfriendly.org'
+    PROTOCOL = 'http'
+
+    @classmethod
+    def _next(cls, html):
+        return cls.expand(html.find('area', alt="Next Day's Cartoon")['href'])
+
+    @classmethod
+    def _img(cls, html):
+        return html.find('img', alt=re.compile('^Strip for'))['src']
+
+    @classmethod
+    def _key(cls, html):
+        return html.find('img', alt=re.compile(
+            '^Strip for')).parent['href'].split('=')[-1]
+
+    @classmethod
+    def _filename(cls, html):
+        return '.'.join([cls._key(html), cls._img(html).split('.')[-1]])
