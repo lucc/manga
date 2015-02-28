@@ -1,4 +1,4 @@
-'''TODO'''
+"""Command line interface for the manga downloading package."""
 
 
 import argparse
@@ -16,8 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 def check_url(string):
-    '''Check if the given string can be used as an url.  Return the string
-    unchanged, if so.'''
+    """Check if the given string can be used as an url.  Return the string
+    unchanged, if so.
+
+    :string: the command line argument to check, a string
+    :returns: the argument unchanged
+
+    """
     url = urllib.parse.urlparse(string)
     if url.netloc is None or url.netloc == '':
         raise argparse.ArgumentError('This url is no good.')
@@ -25,6 +30,11 @@ def check_url(string):
 
 
 def join_threads():
+    """Wait for all currently running threads to finish.
+
+    :returns: None
+
+    """
     try:
         current = threading.current_thread()
         for thread in threading.enumerate():
@@ -37,8 +47,12 @@ def join_threads():
 
 
 def main():
-    '''Parse the command line, check the resulting namespace, prepare the
-    environment and load the images.'''
+    """Parse the command line, check the resulting namespace, prepare the
+    environment and load the images.
+
+    :returns: True
+
+    """
     parser = argparse.ArgumentParser(
         prog=constants.name, description="Download manga from some websites.")
     # output group
