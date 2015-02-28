@@ -4,7 +4,6 @@
 import argparse
 import logging
 import os
-import sys
 import threading
 import urllib.parse
 
@@ -154,4 +153,4 @@ def main():
         jobs.load(args.name, directory)
     join_threads()
     logger.debug('Exiting ...')
-    sys.exit()
+    return True
