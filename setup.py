@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 from setuptools import setup
-from manga_dl import constants
+import manga_dl
 
 setup(
-    name=constants.name,
+    name=manga_dl.__name__,
     author='Lucas Hoffmann',
-    version='.'.join(map(str, constants.version)),
+    version='.'.join(map(str, manga_dl.__version__)),
     packages=['manga_dl'],
     entry_points={'console_scripts': ['manga-dl = manga_dl.cli:main']}
 )

@@ -7,11 +7,13 @@ import os
 import threading
 import urllib.parse
 
-from . import constants
+from . import __name__ as name, __version__ as version
 from . import jobs
 
 
 logger = logging.getLogger(__name__)
+directory = os.path.realpath(os.getenv("MANGADIR") or
+                             os.path.join(os.getenv("HOME"), "comic"))
 
 
 def check_url(string):
@@ -53,7 +55,7 @@ def main():
 
     """
     parser = argparse.ArgumentParser(
-        prog=constants.name, description="Download manga from some websites.")
+        prog=name, description="Download manga from some websites.")
     # output group
     output = parser.add_argument_group(title='Output options')
     output.add_argument(
@@ -67,11 +69,11 @@ def main():
     # general group
     general = parser.add_argument_group(title='General options')
     general.add_argument(
-        '-b', '--background', action='store_true',
-        help='fork to background')
+        '-b', '--background', action='store_true', help='fork to background')
     # can we hand a function to the parser to check the directory?
-    general.add_argument('-d', '--directory', metavar='DIR', default='.',
-                         help='the directory to work in')
+    general.add_argument(
+        '-d', '--directory', metavar='DIR', default='.',
+        help='the directory to work in')
     general.add_argument(
         '-f', '--logfile', metavar='LOG', default='manga.log',
         help='the filename of the logfile to use')
@@ -80,8 +82,7 @@ def main():
         help='''Load all files which are stated in the logfile but are
         missing on disk.''')
     # unimplemented group
-    unimplemented = parser.add_argument_group(
-        'These are not yet implemented')
+    unimplemented = parser.add_argument_group('These are not yet implemented')
     # the idea for 'auto' was to find the manga name and the directory
     # automatically.
     unimplemented.add_argument(
@@ -90,22 +91,18 @@ def main():
     # or use the logfile from within for downloading.
     # idea for "archive": tar --wildcards -xOf "$OPTARG" "*/$LOGFILE"
     unimplemented.add_argument(
-        '-A', '--archive',
-        help='display the logfile from within an archive')
+        '-A', '--archive', help='display the logfile from within an archive')
     unimplemented.add_argument('--view', help='create a html page')
     unimplemented.add_argument(
-        '-r', '--resume', action='store_true',
-        help='resume from a logfile')
+        '-r', '--resume', action='store_true', help='resume from a logfile')
     unimplemented.add_argument(
         '-R', '--resume-all', action='store_true',
         help='visit all directorys in the manga dir and resume there')
     # general group
-    parser.add_argument('-V', '--version', action='version',
-                        version='{} {}.{}.{}'.format(constants.name,
-                                                     *constants.version),
-                        help='print version information')
-    parser.add_argument('name', nargs='?', metavar='url/name',
-                        type=check_url)
+    parser.add_argument(
+        '-V', '--version', action='version', help='print version information',
+        version='{} {}.{}.{}'.format(name, *version))
+    parser.add_argument('name', nargs='?', metavar='url/name', type=check_url)
     args = parser.parse_args()
     if args.resume and (args.name is not None or args.missing):
         parser.error('You can only use -r or -m or give an url.')
@@ -129,7 +126,7 @@ def main():
     # TODO can the directory be retrieved from the manga name?
     mangadir = os.path.curdir
     if not directory == os.path.curdir and os.path.sep not in directory:
-        mangadir = constants.directory
+        mangadir = directory
         directory = os.path.realpath(os.path.join(mangadir, directory))
     if os.path.isdir(directory):
         pass
@@ -142,9 +139,9 @@ def main():
 
     # start downloading
     if args.resume_all:
-        for dd in os.path.listdir(constants.directory):
-            for d in os.path.join(constants.directory, dd):
-                jobs.resume(os.path.join(constants.directory, d))
+        for dd in os.path.listdir(directory):
+            for d in os.path.join(directory, dd):
+                jobs.resume(os.path.join(directory, d))
     elif args.resume:
         jobs.resume(directory)
     elif args.missing:
