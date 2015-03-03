@@ -228,12 +228,13 @@ class Mangafox(Crawler):
     DOMAIN = 'mangafox.me'
     PROTOCOL = 'http'
 
-    def _next(html):
+    @classmethod
+    def _next(cls, html):
         tmp = html.find(id='viewer').a['href']
         if tmp == "javascript:void(0);":
             return html.find(id='chnav').p.a['href']
         else:
-            url = PROTOCOL + '://' + DOMAIN + '/manga/'
+            url = cls.PROTOCOL + '://' + cls.DOMAIN + '/manga/'
             l = str(html.body.find_all('script')[-2]).split('\n')
             # manga name
             url = url + l[3].split('"')[1]
@@ -241,23 +242,29 @@ class Mangafox(Crawler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
-    def _key(html): raise NotImplementedError()
+    @classmethod
+    def _key(cls, html): raise NotImplementedError()
 
-    def _img(html):
+    @classmethod
+    def _img(cls, html):
         return html.find(id='image')['src']
 
-    def _filename(html):
-        keys = _key_helper(html)
+    @classmethod
+    def _filename(cls, html):
+        keys = cls._key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
-            _img(html).split('.')[-1]
+            cls._img(html).split('.')[-1]
 
-    def _chapter(html):
-        return _key_helper()[2]
+    @classmethod
+    def _chapter(cls, html):
+        return cls._key_helper()[2]
 
-    def _page(html):
-        return _key_helper()[3]
+    @classmethod
+    def _page(cls, html):
+        return cls._key_helper()[3]
 
-    def _key_helper(html):
+    @classmethod
+    def _key_helper(cls, html):
         for tmp in html.findAll('link'):
             if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
                 val = tmp['href'].split('/')
