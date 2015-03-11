@@ -3,10 +3,11 @@ the basic Crawler class, which implements general crwaling algorithms and
 methods.  Subclasses only implement the site specific parsing methods."""
 
 
-import os
-import urllib.request
-import re
 import logging
+import os
+import os.path
+import re
+import urllib.request
 
 
 from bs4 import BeautifulSoup

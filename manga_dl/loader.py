@@ -1,11 +1,11 @@
 """Module for the Loader class."""
 
 
+import logging
+import os
 import queue
 import threading
-import os
 import urllib
-import logging
 
 
 from .crawler import Crawler
