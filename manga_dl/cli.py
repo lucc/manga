@@ -12,8 +12,6 @@ from . import jobs
 
 
 logger = logging.getLogger(__name__)
-directory = os.path.realpath(os.getenv("MANGADIR") or
-                             os.path.join(os.getenv("HOME"), "comic"))
 
 
 def check_url(string):
@@ -43,15 +41,13 @@ def join_threads():
                 thread.join()
         logger.debug('All threads joined.')
     except:
-        logger.info('Could not get current thread. %s',
+        logger.info('Could not get current thread.  '
                     'Not waiting for other threads.')
 
 
-def main():
-    """Parse the command line, check the resulting namespace, prepare the
-    environment and load the images.
-
-    :returns: True
+def parse_commandline():
+    """Parse the command line and return the namespace.
+    :returns: TODO
 
     """
     parser = argparse.ArgumentParser(
@@ -104,50 +100,81 @@ def main():
         version='{} {}.{}.{}'.format(name, *version))
     parser.add_argument('name', nargs='?', metavar='url/name', type=check_url)
     args = parser.parse_args()
+    # Make some sanity checks.
     if args.resume and (args.name is not None or args.missing):
         parser.error('You can only use -r or -m or give an url.')
     elif not args.resume and args.name is None and not args.missing:
         parser.error('You must specify -r or -m or an url.')
+    setup_logger(args.verbose)
+    logger.debug(
+        'The parsed command line arguments are {}.'.format(args))
+    try:
+        args.directory = prepare_directory(args.directory)
+    except FileExistsError:
+        parser.error('Path exists but is not a directory.')
+    except:
+        parser.error('Strange error.')
+    # Finally return the namespace.
+    return args
 
-    # configure the logger
+
+def prepare_directory(path):
+    """Prepare the download directory.
+
+    :path: TODO
+    :returns: TODO
+
+    """
+    if path != os.path.curdir and os.path.sep not in path:
+        path = os.path.join(
+            os.path.realpath(
+                os.getenv("MANGADIR") or
+                os.path.join(os.getenv("HOME"), "comic")),
+            path
+        )
+    path = os.path.abspath(path)
+    if not os.path.isdir(path):
+        os.mkdir(path)  # this can throw a FileExistsError.
+    logger.debug('Directory set to "{}".'.format(path))
+    return path
+
+
+def setup_logger(level):
+    """Set up the logging module with the given level.
+
+    :level: a valid logging level
+    :returns: TODO
+
+    """
     levels = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
     try:
-        level = levels[args.verbose]
+        level = levels[level]
     except IndexError:
         level = levels[-1]
     logging.basicConfig(
         format='%(name)s[%(threadName)s] %(asctime)s: %(msg)s',
         level=level)
-    logger.debug(
-        'The parsed command line arguments are {}.'.format(args))
 
-    # set up the directory
-    directory = args.directory
-    # TODO can the directory be retrieved from the manga name?
-    mangadir = os.path.curdir
-    if not directory == os.path.curdir and os.path.sep not in directory:
-        mangadir = directory
-        directory = os.path.realpath(os.path.join(mangadir, directory))
-    if os.path.isdir(directory):
-        pass
-    else:
-        try:
-            os.mkdir(directory)
-        except FileExistsError:
-            parser.error('Path exists but is not a directory.')
-    logger.debug('Directory set to "{}".'.format(directory))
 
+def main():
+    """Parse the command line, check the resulting namespace, prepare the
+    environment and load the images.
+
+    :returns: True
+
+    """
+    args = parse_commandline()
     # start downloading
     if args.resume_all:
-        for dd in os.path.listdir(directory):
-            for d in os.path.join(directory, dd):
-                jobs.resume(os.path.join(directory, d))
+        for dd in os.path.listdir(args.directory):
+            for d in os.path.join(args.directory, dd):
+                jobs.resume(os.path.join(args.directory, d))
     elif args.resume:
-        jobs.resume(directory)
+        jobs.resume(args.directory)
     elif args.missing:
-        jobs.check(directory)
+        jobs.check(args.directory)
     else:
-        jobs.load(args.name, directory)
+        jobs.load(args.name, args.directory)
     join_threads()
     logger.debug('Exiting ...')
     return True
