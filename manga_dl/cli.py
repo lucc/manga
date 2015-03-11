@@ -7,7 +7,7 @@ import os
 import threading
 import urllib.parse
 
-from . import __name__ as name, __version__ as version
+from . import name, __version__ as version
 from . import jobs
 
 

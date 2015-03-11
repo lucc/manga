@@ -4,7 +4,7 @@ from setuptools import setup
 import manga_dl
 
 setup(
-    name=manga_dl.__name__,
+    name=manga_dl.name,
     author='Lucas Hoffmann',
     version='.'.join(map(str, manga_dl.__version__)),
     packages=['manga_dl'],
