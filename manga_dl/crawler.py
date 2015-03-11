@@ -309,3 +309,38 @@ class Userfriendly(Crawler):
     @classmethod
     def _filename(cls, html):
         return '.'.join([cls._key(html), cls._img(html).split('.')[-1]])
+
+
+class Xkcd(Crawler):
+
+    """Crawler for the normal xkcd site at http://xkcd.com."""
+
+    DOMAIN = 'xkcd.com'
+    PROTOCOL = 'http'
+
+    @classmethod
+    def _next(cls, html):
+        return cls.expand(html.find('a', accesskey='n')['href'])
+
+    @classmethod
+    def _img(cls, html):
+        return html.find('div', id='comic').img['src']
+
+    @classmethod
+    def _key(cls, html):
+        try:
+            key = int(html.find('a', accesskey='n')['href'].strip('/')) - 1
+        except ValueError:
+            key = int(html.find('a', accesskey='p')['href'].strip('/')) + 1
+        return key
+
+    @classmethod
+    def _filename(cls, html):
+        return str(cls._key(html)) + '-' + os.path.basename(cls._img(html))
+
+
+class Mxkcd(Xkcd):
+
+    """Crawler for the mobile xkcd site at http://m.xkcd.com"""
+
+    DOMAIN = 'm.xkcd.com'
