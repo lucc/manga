@@ -7,7 +7,7 @@ import queue
 import threading
 import urllib
 
-
+from . import sites
 from .crawler import Crawler
 
 
