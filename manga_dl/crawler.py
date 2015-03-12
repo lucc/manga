@@ -7,6 +7,7 @@ import logging
 import os
 import os.path
 import re
+import time
 import urllib.request
 
 
@@ -85,15 +86,19 @@ class Crawler():
         return key, next, img, filename
 
     def _crawler(self, url):
-        """A generator to crawl the site."""
+        """A generic generator to crawl the site.
+
+        This generator catches many exceptions.  Subclasses might impose a more
+        find grained logic and might want to overwrite this method.
+
+        :url: the url where to start crawling the site
+        :yields: triples of key, image urls and file names to download
+
+        """
         while True:
-            try:
-                logger.debug('Loading page {}.'.format(url))
-                request = urllib.request.urlopen(url)
-            except (urllib.request.http.client.BadStatusLine,
-                    urllib.error.HTTPError,
-                    urllib.error.URLError) as e:
-                logger.exception('%s returned %s', url, e)
+            logger.debug('Loading page {}.'.format(url))
+            request = self._get_page(url)
+            if request is None:
                 self._done.set()
                 return
             html = BeautifulSoup(request)
@@ -104,6 +109,23 @@ class Crawler():
                 self._done.set()
                 return
             yield key, img, filename
+
+    def _get_page(self, url):
+        """Load a web page that should be passed to the parser and catch some
+        errors.  This is a generic method that should be overwritten by
+        subclasses that need a more fine grained logic.
+
+        :url: the url of a web page to load
+        :returns: the page as a http.client.HTTPResponse object or None
+
+        """
+        try:
+            return urllib.request.urlopen(url)
+        except (urllib.request.http.client.BadStatusLine,
+                urllib.error.HTTPError,
+                urllib.error.URLError) as e:
+            logger.exception('{} returned {}'.format(url, e))
+            return
 
     @classmethod
     def expand(cls, url):
@@ -211,6 +233,21 @@ class Mangareader(Crawler):
     def _manga(cls, html):
         return re.sub(r'(.*) [0-9]+$', r'\1',
                       html.find(id='mangainfo').h1.string)
+
+    def _get_page(self, url):
+        for _ in range(5):
+            try:
+                return urllib.request.urlopen(url)
+            except (urllib.request.http.client.BadStatusLine,
+                    urllib.error.HTTPError,
+                    urllib.error.URLError) as e:
+                if str(e) == 'HTTP Error 503: Service Unavailable':
+                    logger.warning('{} returned {}, retrying ...'.format(
+                        url, e))
+                    time.sleep(1)
+                    continue
+                logger.warning('{} returned {}, giving up.'.format(url, e))
+                return
 
 
 class Unixmanga(Crawler):
