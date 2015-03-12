@@ -13,6 +13,16 @@ from . import crawler
 logger = logging.getLogger(__name__)
 
 
+def find_crawler(url):
+    """Find a suitable crawler.Crawler subclass that can handle the given url.
+
+    :url: an url
+    :returns: a subclass of crawler.Crawler
+
+    """
+    return crawler.Crawler.find_subclass(url)
+
+
 class Mangareader(crawler.Crawler):
 
     PROTOCOL = 'http'
