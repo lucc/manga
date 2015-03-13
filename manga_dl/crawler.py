@@ -4,8 +4,6 @@ methods.  Subclasses only implement the site specific parsing methods."""
 
 
 import logging
-import os
-import os.path
 import urllib.request
 
 
@@ -21,14 +19,6 @@ class Crawler():
     Normally a starting url is given and all subsequant pages are loaded and
     parsed.  The urls of the images and destination filenames are pushed onto a
     queue for further processing (possibly in another thread).
-
-    This is a generic class that implements the general crawling logic.  Site
-    specific parsing methods have to be implemented by subclasses.  These are:
-        cls._next(html)
-        cls._img(html)
-        cls._manga(html)
-        cls._chapter(html)
-        cls._page(html)
     """
 
     # References to be implement in subclasses.
@@ -102,53 +92,47 @@ class Crawler():
             'There is no class available to work with this url.')
 
     def start(self, url, after=False):
-        """Crawl the site starting at url (or just after url if after=True)
-        and queue all image urls with their filenames to be download in
-        another thread.
+        """Start the crawling of the site and push the data found on the
+        internal queue.  This is the public entry point for the crawling logic.
+        The given url is the position where to start crawling.  The sites
+        loaded will then be parsed and the image urls and file names will be
+        pushed on the internal job queue for consumtion by a download worker.
+        If the optional argument after is True, only the pages after the given
+        url will be used to push jobs on the queue.
 
         :url: a string, the url where to start
         :after: a bool, if true images will be loaded only after the start url
         :returns: None
 
         """
-        if after:
-            try:
-                request = urllib.request.urlopen(url)
-            except urllib.error.URLError as e:
-                logger.exception('%s returned %s', url, e)
-                return
-            html = BeautifulSoup(request)
-            url = self.__class__._next(html)
-        for key, img, filename in self._crawler(url):
-            logger.debug('Queueing job {}.'.format(key))
-            self._queue.put((key, img, filename))
+        raise NotImplementedError()
 
     def _crawler(self, url):
-        """A generic generator to crawl the site.
-
-        This generator catches many exceptions.  Subclasses might impose a more
-        find grained logic and might want to overwrite this method.
+        """Crawl the site starting at the given url and yield the extracted
+        data.  Return when the last page is reached.
 
         :url: the url where to start crawling the site
         :yields: triples of key, image urls and file names to download
 
         """
-        while True:
-            logger.debug('Loading page {}.'.format(url))
-            request = self._get_page(url)
-            if request is None:
-                self._done.set()
-                return
-            html = BeautifulSoup(request)
-            try:
-                key, url, img, filename = self.__class__._parse(html)
-            except AttributeError:
-                logger.info('{} seems to be the last page.'.format(url))
-                self._done.set()
-                return
-            yield key, img, filename
+        raise NotImplementedError()
 
-    def _get_page(self, url):
+    @classmethod
+    def _parse(cls, page):
+        """Parse the loaded page and extract the needed data from it.  The data
+        should be returned as a touple of a key, next urls(s), image url and
+        file name.  The key is used to identify the download job of the image.
+        The next url(s) object is used by the crawler to load further pages.
+        The file name is where the image url should be saved to.  If no data
+        was found in the page None is retuned instead.
+
+        :page: the page loaded in the _crawler generator
+        :returns: the extracted data or None
+
+        """
+        raise NotImplementedError()
+
+    def _load_page(self, url):
         """Load a web page that should be passed to the parser and catch some
         errors.  This is a generic method that should be overwritten by
         subclasses that need a more fine grained logic.
@@ -165,39 +149,73 @@ class Crawler():
             logger.exception('{} returned {}'.format(url, e))
             return
 
-    @classmethod
-    def _key(cls, html):
-        """TODO"""
-        return str(cls._chapter(html)) + '-' + str(cls._page(html))
+class LinearPageCrawler(Crawler):
+
+    """A linear crawler that will load the pages sequentially in order to find
+    the image download links and filenames.
+
+    This is a generic class that implements the general crawling logic.  Site
+     specific parsing methods have to be implemented by subclasses.  These are:
+         cls._next(html)
+         cls._img(html)
+         cls._manga(html)
+         cls._chapter(html)
+         cls._page(html)
+    """
+
+    def start(self, url, after=False):
+        """Crawl the site starting at url (or just after url if after=True)
+        and queue all image urls with their filenames to be download in
+        another thread.
+
+        :url: a string, the url where to start
+        :after: a bool, if true images will be loaded only after the start url
+        :returns: None
+
+        """
+        if after:
+            page = self._load_page(url)
+            try:
+                _, url, _, _ = self._parse(page)
+            except AttributeError:
+                self._done.set()
+                return
+        for key, img, filename in self._crawler(url):
+            logger.debug('Queueing job {}.'.format(key))
+            self._queue.put((key, img, filename))
+
+    def _crawler(self, url):
+        """A generic generator to crawl the site.
+
+        This generator catches many exceptions.  Subclasses might impose a more
+        find grained logic and might want to overwrite this method.
+
+        :url: the url where to start crawling the site
+        :yields: triples of key, image urls and file names to download
+
+        """
+        while True:
+            logger.debug('Loading page {}.'.format(url))
+            page = self._load_page(url)
+            try:
+                key, url, img, filename = self._parse(page)
+            except AttributeError:
+                logger.info('{} seems to be the last page.'.format(url))
+                self._done.set()
+                return
+            yield key, img, filename
 
     @classmethod
-    def _filename(cls, html):
-        """TODO"""
-        return ('_'.join(cls._manga(html).split()) + '-' +
-                str(cls._chapter(html)) + '-' +
-                str(cls._page(html)) + '.' +
-                os.path.splitext(cls._img(html))[1]).lower()
-
-    @classmethod
-    def _parse(cls, html):
+    def _parse(cls, page):
         """This method returns a tupel of a key, the next url, the image url and
         the filename to downlowd to.  It should extract these information from
         the supplied html page inline.
         """
         # This is just a dummy implementation which could be overwritten.
         # The actual implementation can extract these information inline.
+        html = BeautifulSoup(page)
         key = cls._key(html)
         next = cls._next(html)
         img = cls._img(html)
         filename = cls._filename(html)
         return key, next, img, filename
-
-    def _next(html): raise NotImplementedError()
-
-    def _img(html): raise NotImplementedError()
-
-    def _manga(html): raise NotImplementedError()
-
-    def _chapter(html): raise NotImplementedError()
-
-    def _page(html): raise NotImplementedError()
