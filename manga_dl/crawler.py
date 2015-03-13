@@ -35,16 +35,6 @@ class Crawler():
     PROTOCOL = ''
     DOMAIN = ''
 
-    def _next(html): raise NotImplementedError()
-
-    def _img(html): raise NotImplementedError()
-
-    def _manga(html): raise NotImplementedError()
-
-    def _chapter(html): raise NotImplementedError()
-
-    def _page(html): raise NotImplementedError()
-
     def __init__(self, queue, end_event):
         """Initialize the crawler with the given queue and the end_event.  The
         queue will be filled with the image urls and filenames when the start()
@@ -57,73 +47,6 @@ class Crawler():
         """
         self._queue = queue
         self._done = end_event
-
-    @classmethod
-    def _key(cls, html):
-        return str(cls._chapter(html)) + '-' + str(cls._page(html))
-
-    @classmethod
-    def _filename(cls, html):
-        return ('_'.join(cls._manga(html).split()) + '-' +
-                str(cls._chapter(html)) + '-' +
-                str(cls._page(html)) + '.' +
-                os.path.splitext(cls._img(html))[1]).lower()
-
-    @classmethod
-    def _parse(cls, html):
-        """This method returns a tupel of a key, the next url, the image url and
-        the filename to downlowd to.  It should extract these information from
-        the supplied html page inline.
-        """
-        # This is just a dummy implementation which could be overwritten.
-        # The actual implementation can extract these information inline.
-        key = cls._key(html)
-        next = cls._next(html)
-        img = cls._img(html)
-        filename = cls._filename(html)
-        return key, next, img, filename
-
-    def _crawler(self, url):
-        """A generic generator to crawl the site.
-
-        This generator catches many exceptions.  Subclasses might impose a more
-        find grained logic and might want to overwrite this method.
-
-        :url: the url where to start crawling the site
-        :yields: triples of key, image urls and file names to download
-
-        """
-        while True:
-            logger.debug('Loading page {}.'.format(url))
-            request = self._get_page(url)
-            if request is None:
-                self._done.set()
-                return
-            html = BeautifulSoup(request)
-            try:
-                key, url, img, filename = self.__class__._parse(html)
-            except AttributeError:
-                logger.info('{} seems to be the last page.'.format(url))
-                self._done.set()
-                return
-            yield key, img, filename
-
-    def _get_page(self, url):
-        """Load a web page that should be passed to the parser and catch some
-        errors.  This is a generic method that should be overwritten by
-        subclasses that need a more fine grained logic.
-
-        :url: the url of a web page to load
-        :returns: the page as a http.client.HTTPResponse object or None
-
-        """
-        try:
-            return urllib.request.urlopen(url)
-        except (urllib.request.http.client.BadStatusLine,
-                urllib.error.HTTPError,
-                urllib.error.URLError) as e:
-            logger.exception('{} returned {}'.format(url, e))
-            return
 
     @classmethod
     def expand(cls, url):
@@ -199,3 +122,82 @@ class Crawler():
         for key, img, filename in self._crawler(url):
             logger.debug('Queueing job {}.'.format(key))
             self._queue.put((key, img, filename))
+
+    def _crawler(self, url):
+        """A generic generator to crawl the site.
+
+        This generator catches many exceptions.  Subclasses might impose a more
+        find grained logic and might want to overwrite this method.
+
+        :url: the url where to start crawling the site
+        :yields: triples of key, image urls and file names to download
+
+        """
+        while True:
+            logger.debug('Loading page {}.'.format(url))
+            request = self._get_page(url)
+            if request is None:
+                self._done.set()
+                return
+            html = BeautifulSoup(request)
+            try:
+                key, url, img, filename = self.__class__._parse(html)
+            except AttributeError:
+                logger.info('{} seems to be the last page.'.format(url))
+                self._done.set()
+                return
+            yield key, img, filename
+
+    def _get_page(self, url):
+        """Load a web page that should be passed to the parser and catch some
+        errors.  This is a generic method that should be overwritten by
+        subclasses that need a more fine grained logic.
+
+        :url: the url of a web page to load
+        :returns: the page as a http.client.HTTPResponse object or None
+
+        """
+        try:
+            return urllib.request.urlopen(url)
+        except (urllib.request.http.client.BadStatusLine,
+                urllib.error.HTTPError,
+                urllib.error.URLError) as e:
+            logger.exception('{} returned {}'.format(url, e))
+            return
+
+    @classmethod
+    def _key(cls, html):
+        """TODO"""
+        return str(cls._chapter(html)) + '-' + str(cls._page(html))
+
+    @classmethod
+    def _filename(cls, html):
+        """TODO"""
+        return ('_'.join(cls._manga(html).split()) + '-' +
+                str(cls._chapter(html)) + '-' +
+                str(cls._page(html)) + '.' +
+                os.path.splitext(cls._img(html))[1]).lower()
+
+    @classmethod
+    def _parse(cls, html):
+        """This method returns a tupel of a key, the next url, the image url and
+        the filename to downlowd to.  It should extract these information from
+        the supplied html page inline.
+        """
+        # This is just a dummy implementation which could be overwritten.
+        # The actual implementation can extract these information inline.
+        key = cls._key(html)
+        next = cls._next(html)
+        img = cls._img(html)
+        filename = cls._filename(html)
+        return key, next, img, filename
+
+    def _next(html): raise NotImplementedError()
+
+    def _img(html): raise NotImplementedError()
+
+    def _manga(html): raise NotImplementedError()
+
+    def _chapter(html): raise NotImplementedError()
+
+    def _page(html): raise NotImplementedError()
