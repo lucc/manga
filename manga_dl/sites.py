@@ -3,7 +3,6 @@
 import logging
 import os
 import re
-import time
 import urllib
 
 
@@ -23,10 +22,12 @@ def find_crawler(url):
     return crawler.Crawler.find_subclass(url)
 
 
-class Mangareader(crawler.Crawler):
+class Mangareader(crawler.LinearPageCrawler):
 
     PROTOCOL = 'http'
     DOMAIN = 'www.mangareader.net'
+    HANDLED_EXCEPTIONS = (urllib.request.http.client.BadStatusLine,
+                          urllib.error.HTTPError, urllib.error.URLError)
 
     @classmethod
     def _next(cls, html):
@@ -54,20 +55,9 @@ class Mangareader(crawler.Crawler):
         return re.sub(r'(.*) [0-9]+$', r'\1',
                       html.find(id='mangainfo').h1.string)
 
-    def _get_page(self, url):
-        for _ in range(5):
-            try:
-                return urllib.request.urlopen(url)
-            except (urllib.request.http.client.BadStatusLine,
-                    urllib.error.HTTPError,
-                    urllib.error.URLError) as e:
-                if str(e) == 'HTTP Error 503: Service Unavailable':
-                    logger.warning('{} returned {}, retrying ...'.format(
-                        url, e))
-                    time.sleep(1)
-                    continue
-                logger.warning('{} returned {}, giving up.'.format(url, e))
-                return
+    def _ignore_exception(self, exeption):
+        """Overwriding LinearPageCrawler._ignore_exception."""
+        return str(exeption) == 'HTTP Error 503: Service Unavailable'
 
 
 class Unixmanga(crawler.Crawler):
