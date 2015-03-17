@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 
 
 logger = logging.getLogger(__name__)
+RETRIES = 10
 
 
 class Crawler():
@@ -24,6 +25,9 @@ class Crawler():
     # References to be implement in subclasses.
     PROTOCOL = ''
     DOMAIN = ''
+    HANDLED_EXCEPTIONS = ()
+    # (urllib.request.http.client.BadStatusLine, urllib.error.HTTPError,
+    # urllib.error.URLError)
 
     def __init__(self, queue, end_event):
         """Initialize the crawler with the given queue and the end_event.  The
@@ -117,6 +121,21 @@ class Crawler():
         """
         raise NotImplementedError()
 
+    def _ignore_exception(self, exception):
+        """Check an exception that was returned when loading a page in the
+        crawler generator.  The exception argument is the exception and is an
+        instance of one of the exception classes given in
+        self.HANDLED_EXCEPTIONS.  This method should return True if the
+        exeption can be ignored and the page should be loaded again, False if
+        the error is fatal and loading should be stopped.
+
+        :exeption: an exeption object of one of the types in
+            self.HANDLED_EXCEPTIONS
+        :returns: True or False
+
+        """
+        raise NotImplementedError()
+
     @classmethod
     def _parse(cls, page):
         """Parse the loaded page and extract the needed data from it.  The data
@@ -133,21 +152,32 @@ class Crawler():
         raise NotImplementedError()
 
     def _load_page(self, url):
-        """Load a web page that should be passed to the parser and catch some
-        errors.  This is a generic method that should be overwritten by
-        subclasses that need a more fine grained logic.
+        """Load the given url.  Handle the exceptions given in
+        self.HANDLED_EXCEPTIONS and retry to load the page.
 
-        :url: the url of a web page to load
-        :returns: the page as a http.client.HTTPResponse object or None
+        :url: the url of the page to load
+        :returns: the page or None if loading failed
 
         """
-        try:
-            return urllib.request.urlopen(url)
-        except (urllib.request.http.client.BadStatusLine,
-                urllib.error.HTTPError,
-                urllib.error.URLError) as e:
-            logger.exception('{} returned {}'.format(url, e))
+        for _ in range(RETRIES):
+            try:
+                return urllib.request.urlopen(url)
+            except self.HANDLED_EXCEPTIONS as e:
+                if self._ignore_exception(e):
+                    logger.warning(
+                        '{} returned {}, retrying ...'.format(url, e))
+                    continue
+                else:
+                    logger.warning(
+                        '{} returned {}.  Giving up.'.format(url, e))
+                    return
+                logger.exception('%s returned %s', url, e)
+                return
+        else:
+            logger.warning(
+                'Retry count for {} exceeded.  Giving up.'.format(url))
             return
+
 
 class LinearPageCrawler(Crawler):
 
