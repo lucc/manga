@@ -157,20 +157,15 @@ class Xkcd(crawler.DirectPageCrawler):
 
     DOMAIN = 'xkcd.com'
     PROTOCOL = 'http'
-    METAPAGE = 'http://xkcd.com/archive'
+    METAPAGE = 'http://m.xkcd.com/'
 
-    def _parse_meta_page(self, html, url, after):
-        logger.debug('Enter Xkcd._parse_meta_page')
-        threshold = int(url.rstrip('/').split('/')[-1])
+    def _parse_meta_page(self, page, url, after):
+        start = int(url.rstrip('/').split('/')[-1])
         if after:
-            threshold += 1
-        for tag in html.find('div', id='middleContainer').find_all('a'):
-            url = int(tag['href'].strip('/'))
-            if url >= threshold:
-                yield self.expand(str(url))
-
-    def _next(self, html):
-        return self.expand(html.find('a', accesskey='n')['href'])
+            start += 1
+        key, img_url, filename = self._parse(page)
+        self._queue.put((key, img_url, filename))
+        return map(self.expand, map(str, range(start, key)))
 
     def _img(self, html):
         return html.find('div', id='comic').img['src']
