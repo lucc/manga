@@ -29,29 +29,23 @@ class Mangareader(crawler.LinearPageCrawler):
     HANDLED_EXCEPTIONS = (urllib.request.http.client.BadStatusLine,
                           urllib.error.HTTPError, urllib.error.URLError)
 
-    @classmethod
-    def _next(cls, html):
-        return cls.expand(html.find(id='img').parent['href'])
+    def _next(self, html):
+        return self.expand(html.find(id='img').parent['href'])
 
-    @classmethod
-    def _img(cls, html):
+    def _img(self, html):
         return html.find(id='img')['src']
 
-    @classmethod
-    def _filename(cls, html):
+    def _filename(self, html):
         return re.sub(r'[ -]+', '-', html.find(id="img")["alt"]).lower() + \
-            '.' + cls._img(html).split('.')[-1]
+            '.' + self._img(html).split('.')[-1]
 
-    @classmethod
-    def _chapter(cls, html):
+    def _chapter(self, html):
         return int(html.find(id='mangainfo').h1.string.split()[-1])
 
-    @classmethod
-    def _page(cls, html):
+    def _page(self, html):
         return int(html.find(id='mangainfo').span.string.split()[1])
 
-    @classmethod
-    def _manga(cls, html):
+    def _manga(self, html):
         return re.sub(r'(.*) [0-9]+$', r'\1',
                       html.find(id='mangainfo').h1.string)
 
@@ -66,7 +60,7 @@ class Unixmanga(crawler.Crawler):
     PROTOCOL = 'http'
     DOMAIN = 'unixmanga.com'
 
-    def _next(html):
+    def _next(self, html):
         s = html.find_all(class_='navnext')[0].script.string.split('\n')[1]
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
@@ -76,13 +70,12 @@ class Mangafox(crawler.Crawler):
     DOMAIN = 'mangafox.me'
     PROTOCOL = 'http'
 
-    @classmethod
-    def _next(cls, html):
+    def _next(self, html):
         tmp = html.find(id='viewer').a['href']
         if tmp == "javascript:void(0);":
             return html.find(id='chnav').p.a['href']
         else:
-            url = cls.PROTOCOL + '://' + cls.DOMAIN + '/manga/'
+            url = self.PROTOCOL + '://' + self.DOMAIN + '/manga/'
             l = str(html.body.find_all('script')[-2]).split('\n')
             # manga name
             url = url + l[3].split('"')[1]
@@ -90,29 +83,23 @@ class Mangafox(crawler.Crawler):
             url = url + l[6].split('"')[1] + tmp
             return url
 
-    @classmethod
-    def _key(cls, html): raise NotImplementedError()
+    def _key(self, html): raise NotImplementedError()
 
-    @classmethod
-    def _img(cls, html):
+    def _img(self, html):
         return html.find(id='image')['src']
 
-    @classmethod
-    def _filename(cls, html):
-        keys = cls._key_helper(html)
+    def _filename(self, html):
+        keys = self._key_helper(html)
         return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
-            cls._img(html).split('.')[-1]
+            self._img(html).split('.')[-1]
 
-    @classmethod
-    def _chapter(cls, html):
-        return cls._key_helper()[2]
+    def _chapter(self, html):
+        return self._key_helper()[2]
 
-    @classmethod
-    def _page(cls, html):
-        return cls._key_helper()[3]
+    def _page(self, html):
+        return self._key_helper()[3]
 
-    @classmethod
-    def _key_helper(cls, html):
+    def _key_helper(self, html):
         for tmp in html.findAll('link'):
             if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
                 val = tmp['href'].split('/')
@@ -140,22 +127,19 @@ class Userfriendly(crawler.Crawler):
     DOMAIN = 'ars.userfriendly.org'
     PROTOCOL = 'http'
 
-    @classmethod
-    def _next(cls, html):
-        return cls.expand(html.find('area', alt="Next Day's Cartoon")['href'])
+    def _next(self, html):
+        return self.__class__.expand(
+            html.find('area', alt="Next Day's Cartoon")['href'])
 
-    @classmethod
-    def _img(cls, html):
+    def _img(self, html):
         return html.find('img', alt=re.compile('^Strip for'))['src']
 
-    @classmethod
-    def _key(cls, html):
+    def _key(self, html):
         return html.find('img', alt=re.compile(
             '^Strip for')).parent['href'].split('=')[-1]
 
-    @classmethod
-    def _filename(cls, html):
-        return '.'.join([cls._key(html), cls._img(html).split('.')[-1]])
+    def _filename(self, html):
+        return '.'.join([self._key(html), self._img(html).split('.')[-1]])
 
 
 class Xkcd(crawler.Crawler):
@@ -165,25 +149,21 @@ class Xkcd(crawler.Crawler):
     DOMAIN = 'xkcd.com'
     PROTOCOL = 'http'
 
-    @classmethod
-    def _next(cls, html):
-        return cls.expand(html.find('a', accesskey='n')['href'])
+    def _next(self, html):
+        return self.expand(html.find('a', accesskey='n')['href'])
 
-    @classmethod
-    def _img(cls, html):
+    def _img(self, html):
         return html.find('div', id='comic').img['src']
 
-    @classmethod
-    def _key(cls, html):
+    def _key(self, html):
         try:
             key = int(html.find('a', accesskey='n')['href'].strip('/')) - 1
         except ValueError:
             key = int(html.find('a', accesskey='p')['href'].strip('/')) + 1
         return key
 
-    @classmethod
-    def _filename(cls, html):
-        return str(cls._key(html)) + '-' + os.path.basename(cls._img(html))
+    def _filename(self, html):
+        return str(self._key(html)) + '-' + os.path.basename(self._img(html))
 
 
 class Mxkcd(Xkcd):

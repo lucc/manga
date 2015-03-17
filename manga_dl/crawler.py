@@ -137,8 +137,7 @@ class Crawler():
         raise NotImplementedError(
             "Crawler._ignore_exception has to be implemented in a subclass.")
 
-    @classmethod
-    def _parse(cls, page):
+    def _parse(self, page):
         """Parse the loaded page and extract the needed data from it.  The data
         should be returned as a touple of a key, next urls(s), image url and
         file name.  The key is used to identify the download job of the image.
@@ -238,8 +237,7 @@ class LinearPageCrawler(Crawler):
                 return
             yield key, img, filename
 
-    @classmethod
-    def _parse(cls, page):
+    def _parse(self, page):
         """This method returns a tupel of a key, the next url, the image url and
         the filename to downlowd to.  It should extract these information from
         the supplied html page inline.
@@ -247,18 +245,17 @@ class LinearPageCrawler(Crawler):
         # This is just a dummy implementation which could be overwritten.
         # The actual implementation can extract these information inline.
         html = BeautifulSoup(page)
-        key = cls._key(html)
-        next = cls._next(html)
-        img = cls._img(html)
-        filename = cls._filename(html)
+        key = self._key(html)
+        next = self._next(html)
+        img = self._img(html)
+        filename = self._filename(html)
         return key, next, img, filename
 
-    @classmethod
-    def _key(cls, html):
+    def _key(self, html):
         """Format a key for the given page from the chapter and page number.
 
         :html: a parsed page where the image data can be found
         :retruns: a key to identify the job to load from the given page
 
         """
-        return str(cls._chapter(html)) + '-' + str(cls._page(html))
+        return str(self._chapter(html)) + '-' + str(self._page(html))
