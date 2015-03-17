@@ -6,6 +6,9 @@ import re
 import urllib
 
 
+from bs4 import BeautifulSoup
+
+
 from . import crawler
 
 
@@ -142,12 +145,24 @@ class Userfriendly(crawler.Crawler):
         return '.'.join([self._key(html), self._img(html).split('.')[-1]])
 
 
-class Xkcd(crawler.Crawler):
+class Xkcd(crawler.DirectPageCrawler):
 
     """Crawler for the normal xkcd site at http://xkcd.com."""
 
     DOMAIN = 'xkcd.com'
     PROTOCOL = 'http'
+    METAPAGE = 'http://xkcd.com/archive'
+
+    def _parse_meta_page(self, page, url, after):
+        logger.debug('Enter Xkcd._parse_meta_page')
+        threshold = int(url.rstrip('/').split('/')[-1])
+        if after:
+            threshold += 1
+        html = BeautifulSoup(page)
+        for tag in html.find('div', id='middleContainer').find_all('a'):
+            url = int(tag['href'].strip('/'))
+            if url >= threshold:
+                yield self.expand(str(url))
 
     def _next(self, html):
         return self.expand(html.find('a', accesskey='n')['href'])
