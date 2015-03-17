@@ -79,21 +79,19 @@ class Crawler():
     @classmethod
     def find_subclass(cls, url):
         """Find a (sub) class that can crawl the given url.  Return the class if
-        it can and raise an Error otherwise.
+        it can and None if no class was found.
 
         :url: the url that has to be crawled
-        :returns: a Crawler subclass
+        :returns: a Crawler subclass or None
 
         """
         if cls.can_load(url):
             return cls
         for subcls in cls.__subclasses__():
-            if subcls.can_load(url):
-                return subcls
-        for subcls in cls.__subclasses__():
-            subcls.find_subclass(url)
-        raise NotImplementedError(
-            'There is no class available to work with this url.')
+            cls2 = subcls.find_subclass(url)
+            if cls2 is not None:
+                return cls2
+        return None
 
     def start(self, url, after=False):
         """Start the crawling of the site and push the data found on the
