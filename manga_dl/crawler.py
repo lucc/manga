@@ -4,6 +4,8 @@ methods.  Subclasses only implement the site specific parsing methods."""
 
 
 import logging
+import queue
+import threading
 import urllib.request
 
 
@@ -238,9 +240,9 @@ class LinearPageCrawler(Crawler):
             yield key, img, filename
 
     def _parse(self, page):
-        """This method returns a tupel of a key, the next url, the image url and
-        the filename to downlowd to.  It should extract these information from
-        the supplied html page inline.
+        """This method returns a tupel of a key, the next url, the image url
+        and the filename to downlowd to.  It should extract these information
+        from the supplied html page inline.
         """
         # This is just a dummy implementation which could be overwritten.
         # The actual implementation can extract these information inline.
@@ -259,3 +261,107 @@ class LinearPageCrawler(Crawler):
 
         """
         return str(self._chapter(html)) + '-' + str(self._page(html))
+
+
+class DirectPageCrawler(Crawler):
+
+    """Docstring for DirectCrawler. """
+
+    PARSER_COUNT = 10
+    METAPAGE = None
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the internal page queue and call super().__init__."""
+        super().__init__(*args, **kwargs)
+        self._page_queue = queue.Queue(10000)
+
+    def start(self, url, after=False):
+        """Crawl the site starting at url (or just after url if after=True)
+        and queue all image urls with their filenames to be download in
+        another thread.
+
+        :url: a string, the url where to start
+        :after: a bool, if true images will be loaded only after the start url
+        :returns: None
+
+        """
+        for page_url in self._find_pages(url, after):
+            self._page_queue.put(page_url)
+        for _ in range(self.PARSER_COUNT):
+            self._thread(self._parse_worker)
+
+    @staticmethod
+    def _thread(function, arguments=()):
+        """Start the given function with the arguments in a new thread.
+
+        :function: the function object to execute in the new thread
+        :arguments: the argument tupel for the function object
+        :returns: None
+
+        """
+        t = threading.Thread(target=function, args=arguments)
+        t.start()
+
+    def _find_pages(self, url, after):
+        """Return the urls for all pages to load.
+
+        :url: the initial url
+        :after: bool wheather the image of the initial url should also be
+            loaded
+        :returns: an iterable of all the urls of the pages where the image
+            links can be found
+
+        """
+        page = self._load_page(self.METAPAGE or url)
+        return self._parse_meta_page(page, url, after)
+
+    def _parse_worker(self):
+        """Worker to download and parse pages from the internal page queue and
+        push the resulting image urls and filenames onto the internal image
+        queue.
+
+        :returns: None
+
+        """
+        while True:
+            try:
+                # TODO set a reasonable timeout
+                page_url = self._page_queue.get(timeout=2)
+            except queue.Empty:
+                logger.debug('Could not get item from queue.')
+                return
+            page = self._load_page(page_url)
+            try:
+                logger.debug('Parsing {} ...'.format(page_url))
+                key, img_url, filename = self._parse(page)
+            except AttributeError as e:
+                logger.exception(
+                    'Parsing {} returned {}.  Giving up.'.format(page_url, e))
+                self._page_queue.task_done()
+            self._queue.put((key, img_url, filename))
+            self._page_queue.task_done()
+
+    def _parse(self, page):
+        """This method returns a tupel of a key, the next url, the image url
+        and the filename to downlowd to.  It should extract these information
+        from the supplied html page inline.
+        """
+        # This is just a dummy implementation which could be overwritten.
+        # The actual implementation can extract these information inline.
+        html = BeautifulSoup(page)
+        key = self._key(html)
+        img = self._img(html)
+        filename = self._filename(html)
+        return key, img, filename
+
+    def _parse_meta_page(self, page, url, after):
+        """Parse the meta page for this site to find all the page links where
+        image links can be found.  Return an itarable of all the page urls.
+
+        :page: the meta page to parse
+        :url: the initial url
+        :after: wheather the initial page should be included in the result
+        :returns: an itarable of urls
+
+        """
+        raise NotImplementedError()
