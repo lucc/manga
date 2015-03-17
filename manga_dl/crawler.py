@@ -202,6 +202,7 @@ class LinearPageCrawler(Crawler):
 
         """
         if after:
+            logger.debug('Loading initial page ...')
             page = self._load_page(url)
             try:
                 _, url, _, _ = self._parse(page)
@@ -247,3 +248,13 @@ class LinearPageCrawler(Crawler):
         img = cls._img(html)
         filename = cls._filename(html)
         return key, next, img, filename
+
+    @classmethod
+    def _key(cls, html):
+        """Format a key for the given page from the chapter and page number.
+
+        :html: a parsed page where the image data can be found
+        :retruns: a key to identify the job to load from the given page
+
+        """
+        return str(cls._chapter(html)) + '-' + str(cls._page(html))
