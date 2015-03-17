@@ -107,7 +107,8 @@ class Crawler():
         :returns: None
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            "Crawler.start has to be implemented in a subclass.")
 
     def _crawler(self, url):
         """Crawl the site starting at the given url and yield the extracted
@@ -117,7 +118,8 @@ class Crawler():
         :yields: triples of key, image urls and file names to download
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            "Crawler._crawler has to be implemented in a subclass.")
 
     def _ignore_exception(self, exception):
         """Check an exception that was returned when loading a page in the
@@ -132,7 +134,8 @@ class Crawler():
         :returns: True or False
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            "Crawler._ignore_exception has to be implemented in a subclass.")
 
     @classmethod
     def _parse(cls, page):
@@ -147,7 +150,8 @@ class Crawler():
         :returns: the extracted data or None
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            "Crawler._parse has to be implemented in a subclass.")
 
     def _load_page(self, url):
         """Load the given url.  Handle the exceptions given in
