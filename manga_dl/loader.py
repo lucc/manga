@@ -72,7 +72,7 @@ class Loader():
         :returns: None
 
         """
-        t = threading.Thread(target=function, args=arguments)
+        t = threading.Thread(target=function, args=arguments, daemon=True)
         t.start()
 
     def _load_images(self):
