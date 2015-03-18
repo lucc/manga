@@ -265,7 +265,19 @@ class LinearPageCrawler(Crawler):
 
 class DirectPageCrawler(Crawler):
 
-    """Docstring for DirectCrawler. """
+    """A direct page crawler will load one page first and find the urls for all
+    other pages to load from that page.  The initial page can be the url
+    supplied by the user or a site specific meta page.  The urls of all the
+    pages are put on a queue and parsed in parallel by several workers.
+
+    This is a generic class that implements the general crawling logic.  Site
+    specific parsing methods have to be implemented by subclasses.  These are:
+        self._parse_meta_page(page)
+        self._img(html)
+        self._manga(html)
+        self._chapter(html)
+        self._page(html)
+    """
 
     PARSER_COUNT = 10
     METAPAGE = None
