@@ -182,6 +182,69 @@ class Crawler():
             return
 
 
+class ThreadedParser(Crawler):
+
+    """A threaded parser has an internal queue onto which urls will be pushed.
+    Several threads should be spanwned by the start method using the
+    _parse_worker method to consume this internal queue.  The worker function
+    will load the url and parse it and then put the result on the external
+    queue for images."""
+
+    PARSER_COUNT = 10
+
+    def __init__(self, *args, **kwargs):
+        """TODO: to be defined1. """
+        """Initialize the internal page queue and call super().__init__."""
+        super().__init__(self, *args, **kwargs)
+        self._internal_queue = queue.Queue()
+        self._internal_producer_finished = threading.Event()
+
+    @staticmethod
+    def _thread(function, arguments=()):
+        """Start the given function with the arguments in a new thread.
+
+        :function: the function object to execute in the new thread
+        :arguments: the argument tupel for the function object
+        :returns: None
+
+        """
+        t = threading.Thread(target=function, args=arguments)
+        t.start()
+
+    def _parse_worker(self):
+        """Worker to download and parse pages from the internal page queue and
+        push the resulting image urls and filenames onto the internal image
+        queue.
+
+        :returns: None
+
+        """
+        while True:
+            try:
+                # TODO set a reasonable timeout
+                page_url = self._internal_queue.get(timeout=2)
+            except queue.Empty:
+                logger.debug('Could not get item from queue.')
+                if self._internal_producer_finished.is_set()
+                return
+            page = self._load_page(page_url)
+            try:
+                logger.debug('Parsing {} ...'.format(page_url))
+                key, img_url, filename = self._parse(page)
+            except AttributeError as e:
+                logger.exception(
+                    'Parsing {} returned {}.  Giving up.'.format(page_url, e))
+                self._internal_queue.task_done()
+            self._queue.put((key, img_url, filename))
+            self._internal_queue.task_done()
+
+    def _start_parsers(self):
+        """Start all the parsing worker threads."""
+        for _ in range(self.PARSER_COUNT):
+            logger.debug('Starting parser thread ...')
+            self._thread(self._parse_worker)
+
+
 class LinearPageCrawler(Crawler):
 
     """A linear crawler that will load the pages sequentially in order to find
@@ -263,7 +326,7 @@ class LinearPageCrawler(Crawler):
         return str(self._chapter(html)) + '-' + str(self._page(html))
 
 
-class DirectPageCrawler(Crawler):
+class DirectPageCrawler(ThreadedParser):
 
     """A direct page crawler will load one page first and find the urls for all
     other pages to load from that page.  The initial page can be the url
@@ -279,13 +342,7 @@ class DirectPageCrawler(Crawler):
         self._page(html)
     """
 
-    PARSER_COUNT = 10
     METAPAGE = None
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the internal page queue and call super().__init__."""
-        super().__init__(*args, **kwargs)
-        self._page_queue = queue.Queue(10000)
 
     def start(self, url, after=False):
         """Crawl the site starting at url (or just after url if after=True)
@@ -302,18 +359,6 @@ class DirectPageCrawler(Crawler):
         for _ in range(self.PARSER_COUNT):
             self._thread(self._parse_worker)
 
-    @staticmethod
-    def _thread(function, arguments=()):
-        """Start the given function with the arguments in a new thread.
-
-        :function: the function object to execute in the new thread
-        :arguments: the argument tupel for the function object
-        :returns: None
-
-        """
-        t = threading.Thread(target=function, args=arguments)
-        t.start()
-
     def _find_pages(self, url, after):
         """Return the urls for all pages to load.
 
@@ -326,32 +371,6 @@ class DirectPageCrawler(Crawler):
         """
         page = self._load_page(self.METAPAGE or url)
         return self._parse_meta_page(page, url, after)
-
-    def _parse_worker(self):
-        """Worker to download and parse pages from the internal page queue and
-        push the resulting image urls and filenames onto the internal image
-        queue.
-
-        :returns: None
-
-        """
-        while True:
-            try:
-                # TODO set a reasonable timeout
-                page_url = self._page_queue.get(timeout=2)
-            except queue.Empty:
-                logger.debug('Could not get item from queue.')
-                return
-            page = self._load_page(page_url)
-            try:
-                logger.debug('Parsing {} ...'.format(page_url))
-                key, img_url, filename = self._parse(page)
-            except AttributeError as e:
-                logger.exception(
-                    'Parsing {} returned {}.  Giving up.'.format(page_url, e))
-                self._page_queue.task_done()
-            self._queue.put((key, img_url, filename))
-            self._page_queue.task_done()
 
     def _parse(self, page):
         """This method returns a tupel of a key, the next url, the image url
