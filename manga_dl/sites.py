@@ -65,61 +65,70 @@ class Unixmanga(crawler.Crawler):
         return re.sub(r'var nextlink = "(.*)";', r'\1', s)
 
 
-class Mangafox(crawler.Crawler):
+class Mangafox(crawler.LinearChapterDirectPageCrawler):
 
     DOMAIN = 'mangafox.me'
     PROTOCOL = 'http'
 
     def _next(self, html):
-        tmp = html.find(id='viewer').a['href']
-        if tmp == "javascript:void(0);":
-            return html.find(id='chnav').p.a['href']
+        prev_and_next_chap = html.find(id='chnav').find_all('p')
+        if prev_and_next_chap[1].span.text == 'Next Chapter:':
+            return prev_and_next_chap[1].a['href']
+        elif prev_and_next_chap[0].span.text == 'Next Chapter:':
+            return prev_and_next_chap[0].a['href']
         else:
-            url = self.PROTOCOL + '://' + self.DOMAIN + '/manga/'
-            l = str(html.body.find_all('script')[-2]).split('\n')
-            # manga name
-            url = url + l[3].split('"')[1]
-            # volume and chapter and page (in tmp)
-            url = url + l[6].split('"')[1] + tmp
-            return url
-
-    def _key(self, html): raise NotImplementedError()
+            raise AttributeError('No next chapter found.')
 
     def _img(self, html):
         return html.find(id='image')['src']
 
     def _filename(self, html):
-        keys = self._key_helper(html)
-        return keys[0] + ' ' + str(keys[2]) + ' page ' + str(keys[3]) + \
-            self._img(html).split('.')[-1]
+        return '{}-{}-page-{}.{}'.format(
+            self._manga, self._chapter(html), self._page(html),
+            self._img(html).split('.')[-1])
 
     def _chapter(self, html):
-        return self._key_helper()[2]
+        return self._canonical_link(html).split('/')[-2].strip('c')
 
     def _page(self, html):
-        return self._key_helper()[3]
+        return self._canonical_link(html).split('/')[-1].split('.')[0]
 
-    def _key_helper(self, html):
-        for tmp in html.findAll('link'):
-            if tmp.has_key['rel'] and tmp['rel'] == 'canonical':
-                val = tmp['href'].split('/')
-                break
-        if re.march(r'^[0-9]+\.html$', val[-1]) is not None:
-            page = int(val[-1].split('.')[0])
-        else:
-            raise BaseException('wrong string while parsing')
-        if re.match(r'^c[0-9]+$', val[-2]) is not None:
-            chapter = int(val[-2][1:])
-        else:
-            raise BaseException('wrong string while parsing')
-        if re.match(r'^v[0-9]+$', val[-3]) is not None:
-            volume = int(val[-3][1:])
-            i = -4
-        else:
-            volume = None
-            i = -3
-        manga = val[i]
-        return (manga, volume, chapter, page)
+    def _rss_link(self, html):
+        return html.head.find('link', rel='alternate')['href']
+
+    def _canonical_link(self, html):
+        return html.head.find('link', rel='canonical')['href']
+
+    def _key(self, html):
+        return '{}-{}'.format(self._chapter(html), self._page(html))
+
+    def _pages(self, html):
+        """Find all the pages in a chapter page.
+
+        :html: the chapter entry point page
+        :yields: the page urls for this chapter
+
+        """
+        # Substract two from the length of the list because the first page has
+        # already been parsed and the last page is a comment page (page indices
+        # start at one, range() starts at zero).
+        url = self._canonical_link(html).rsplit('/', maxsplit=1)[0]
+        for number in range(2, len(self._options_array(html))):
+            yield '{}/{}.html'.format(url, number)
+
+    def _slice_first_chapter(self, url, html):
+        pagenr = int(self._page(html).split('.')[0])
+        url = url.rsplit('/', maxsplit=1)[0]
+        for number in range(pagenr, len(self._options_array(html))):
+            yield url+'/'+str(number)+'.html'
+
+    def _options_array(self, html):
+        return html.find('form', id='top_bar').find(
+            'select', class_='m').find_all('option')
+
+    def _set_manga_info(self, url, html):
+        self._manga = self._rss_link(html).split('/')[-1].rsplit(
+            '.', maxsplit=1)[0]
 
 
 class Userfriendly(crawler.Crawler):
