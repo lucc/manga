@@ -123,6 +123,21 @@ class Crawler():
         raise NotImplementedError(
             "Crawler._crawler has to be implemented in a subclass.")
 
+    def _parse(self, page):
+        """Parse the loaded page and extract the needed data from it.  The data
+        should be returned as a touple of a key, next urls(s), image url and
+        file name.  The key is used to identify the download job of the image.
+        The next url(s) object is used by the crawler to load further pages.
+        The file name is where the image url should be saved to.  If no data
+        was found in the page None is retuned instead.
+
+        :page: the page loaded in the _crawler generator
+        :returns: the extracted data or None
+
+        """
+        raise NotImplementedError(
+            "Crawler._parse has to be implemented in a subclass.")
+
     def _ignore_exception(self, exception):
         """Check an exception that was returned when loading a page in the
         crawler generator.  The exception argument is the exception and is an
@@ -138,21 +153,6 @@ class Crawler():
         """
         raise NotImplementedError(
             "Crawler._ignore_exception has to be implemented in a subclass.")
-
-    def _parse(self, page):
-        """Parse the loaded page and extract the needed data from it.  The data
-        should be returned as a touple of a key, next urls(s), image url and
-        file name.  The key is used to identify the download job of the image.
-        The next url(s) object is used by the crawler to load further pages.
-        The file name is where the image url should be saved to.  If no data
-        was found in the page None is retuned instead.
-
-        :page: the page loaded in the _crawler generator
-        :returns: the extracted data or None
-
-        """
-        raise NotImplementedError(
-            "Crawler._parse has to be implemented in a subclass.")
 
     def _load_page(self, url):
         """Load the given url.  Handle the exceptions given in
@@ -243,6 +243,23 @@ class ThreadedParser(Crawler):
         for _ in range(self.PARSER_COUNT):
             logger.debug('Starting parser thread ...')
             self._thread(self._parse_worker)
+
+    def _parse(self, page):
+        """This method returns a tupel of a key, the image url and the filename
+        to downlowd to.  It is intended for use in the parser thread, where
+        only this information needs to be extracted from a page.  A subclass
+        should either implement the methods self._key(html), self._img(html)
+        and self._filename(html) or overwrite this method.
+
+        :page: the page as retuned by self._load_page(url)
+        :returns: a triple of key, image url and filen name
+
+        """
+        html = BeautifulSoup(page)
+        key = self._key(html)
+        img = self._img(html)
+        filename = self._filename(html)
+        return key, img, filename
 
 
 class LinearPageCrawler(Crawler):
@@ -371,19 +388,6 @@ class DirectPageCrawler(ThreadedParser):
         """
         page = self._load_page(self.METAPAGE or url)
         return self._parse_meta_page(page, url, after)
-
-    def _parse(self, page):
-        """This method returns a tupel of a key, the next url, the image url
-        and the filename to downlowd to.  It should extract these information
-        from the supplied html page inline.
-        """
-        # This is just a dummy implementation which could be overwritten.
-        # The actual implementation can extract these information inline.
-        html = BeautifulSoup(page)
-        key = self._key(html)
-        img = self._img(html)
-        filename = self._filename(html)
-        return key, img, filename
 
     def _parse_meta_page(self, page, url, after):
         """Parse the meta page for this site to find all the page links where
