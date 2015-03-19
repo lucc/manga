@@ -7,8 +7,7 @@ import queue
 import threading
 import urllib
 
-
-from .crawler import Crawler
+from .sites import find_crawler
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ class Loader():
         # filelogger.setFormatter(formatter)
         # filelogger.addFilter(LoggingFilter())
         # logging.getLogger('').addHandler(filelogger)
-        cls = Crawler.find_subclass(url)
+        cls = find_crawler(url)
         self._worker = cls(self._queue, self._producer_finished)
 
     def _download(self, url, filename):
