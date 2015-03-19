@@ -151,9 +151,11 @@ def setup_logger(level):
         level = levels[level]
     except IndexError:
         level = levels[-1]
-    logging.basicConfig(
-        format='%(name)s[%(threadName)s] %(asctime)s: %(msg)s',
-        level=level)
+    if level <= logging.DEBUG:
+        format = '{name}[{threadName}] {asctime}: {msg}'
+    else:
+        format = '{asctime:.19}: {msg}'
+    logging.basicConfig(format=format, level=level, style='{')
 
 
 def main():
