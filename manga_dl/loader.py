@@ -18,7 +18,7 @@ class Loader():
     """The manager to organize the threads that will download the pages to
     find the image urls and that will download the actual images."""
 
-    def __init__(self, directory, logfile, url, queue_size=10, threads=5):
+    def __init__(self, directory, logfile, url, queue_size=0, threads=10):
         """Initialize the loader class with a directory to save the images to
         and an url from which to load.
 
