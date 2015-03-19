@@ -373,6 +373,98 @@ class LinearPageCrawler(Crawler):
         return '{}-{}'.format(self._chapter(html), self._page(html))
 
 
+@notimplemented('_next', '_key', '_img', '_filename')
+class LinearChapterDirectPageCrawler(ThreadedParser):
+
+    """A linear chapter crawler will load a page for every chapter
+    sequentially.  From this chapter entry point it will be possible to
+    directly find the next chapter url (linear chapter crawling) and also all
+    the urls of the pages for this chapter (direct page crawler).  The crwaler
+    will crawl the chapters sequentially and put all pages to be parsed on an
+    internal queue.  Some worker threads can then process the pages and put the
+    image links on the dedicated queue.
+
+    self._next(page)
+    self._key(html)
+    self._img(html)
+    self._filename(html)
+
+    """
+
+    def start(self, url, after=False):
+        """Crawl the site starting at url (or just after url if after=True)
+        and queue all image urls with their filenames to be download in
+        another thread.
+
+        :url: a string, the url where to start
+        :after: a bool, if true images will be loaded only after the start url
+        :returns: None
+
+        """
+        logger.debug('Loading initial page ...')
+        page = self._load_page(url)
+        next_chapter = self._next(page)
+        logger.debug('The next chapter is at {}.'.format(next_chapter))
+        if not after:
+            try:
+                key, img, filename = self._parse(page)
+            except AttributeError:
+                self._done.set()
+                return
+            self._queue.put((key, img, filename))
+        for page_url in self._slice_first_chapter(url, page):
+            self._internal_queue.put(page_url)
+        self._start_parsers()
+        for page_url in self._crawler(next_chapter):
+            self._internal_queue.put(page_url)
+
+    def _crawler(self, url):
+        """Crawl all chapters in order and extract the page urls from each
+        chapter entry point.  Put the image information og the cahpter entry
+        point on the image queue and yield the other page urls.
+
+        :url: url to the chapter entry page
+        :yields: the page urls from all chapters in order
+
+        """
+        while True:
+            # First load the chapter entry point (normally the first page of
+            # the chapter.
+            logger.debug('Loading page {}.'.format(url))
+            page = self._load_page(url)
+            # When the page is already loaded extract the final image data
+            # directly.
+            try:
+                key, img, filename = self._parse(page)
+            except AttributeError:
+                logger.info('_crawler got an AttributeError, {} seems to be the last page.'.format(url))
+                self._internal_producer_finished.set()
+                return
+            self._queue.put((key, img, filename))
+            # Extract the urls of all the pages in this chapter.
+            for page_url in self._pages(page):
+                yield page_url
+            # Try to find the url of the next chapter.
+            try:
+                url = self._next(page)
+            except AttributeError:
+                logger.info('{} seems to be the last page.'.format(url))
+                self._internal_producer_finished.set()
+                return
+
+    def _slice_first_chapter(self, url, html):
+        """Slice the pages list of the first chapter and yield all page urls
+        after the given initial url.
+
+        :url: the initial url after which all other urls should be used
+        :html: the html of the chapter entry page
+        :yields: all page urls from the first chapter which should still be
+            loaded
+
+        """
+        raise NotImplementedError()
+
+
 class DirectPageCrawler(ThreadedParser):
 
     """A direct page crawler will load one page first and find the urls for all
