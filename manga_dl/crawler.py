@@ -13,7 +13,6 @@ import bs4
 
 
 logger = logging.getLogger(__name__)
-RETRIES = 10
 
 
 def notimplemented(*methods):
@@ -51,6 +50,7 @@ class Crawler():
     DOMAIN = ''
     HANDLED_EXCEPTIONS = ()
     PRE_PARSER = bs4.BeautifulSoup
+    RETRIES = 10
     # (urllib.request.http.client.BadStatusLine, urllib.error.HTTPError,
     # urllib.error.URLError)
 
@@ -197,7 +197,7 @@ class Crawler():
         :returns: the page or None if loading failed
 
         """
-        for _ in range(RETRIES):
+        for _ in range(self.RETRIES):
             try:
                 page = urllib.request.urlopen(url)
                 break
@@ -264,6 +264,7 @@ class ThreadedParser(Crawler):
             except queue.Empty:
                 logger.debug('Could not get item from queue.')
                 if self._internal_producer_finished.is_set():
+                    self._done.set()
                     return
                 else:
                     continue
@@ -446,24 +447,24 @@ class LinearChapterDirectPageCrawler(ThreadedParser):
             # First load the chapter entry point (normally the first page of
             # the chapter.
             logger.debug('Loading page {}.'.format(url))
-            page = self._load_page(url)
+            html = self._load_page(url)
             # When the page is already loaded extract the final image data
             # directly.
             try:
-                key, img, filename = self._parse(page)
-            except AttributeError:
-                logger.info('_crawler got an AttributeError, {} seems to be the last page.'.format(url))
+                key, img, filename = self._parse(html)
+            except (AttributeError, TypeError):
+                logger.info('{} seems to be the last chapter.'.format(url))
                 self._internal_producer_finished.set()
                 return
             self._queue.put((key, img, filename))
             # Extract the urls of all the pages in this chapter.
-            for page_url in self._pages(page):
+            for page_url in self._pages(html):
                 yield page_url
             # Try to find the url of the next chapter.
             try:
-                url = self._next(page)
+                url = self._next(html)
             except AttributeError:
-                logger.info('{} seems to be the last page.'.format(url))
+                logger.info('{} seems to be the last chapter.'.format(url))
                 self._internal_producer_finished.set()
                 return
 
