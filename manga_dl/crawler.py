@@ -173,8 +173,7 @@ class Crawler():
         :returns: True or False
 
         """
-        raise NotImplementedError(
-            "Crawler._ignore_exception has to be implemented in a subclass.")
+        return False
 
     def _load_page(self, url):
         """Load the given url.  Handle the exceptions given in
@@ -218,7 +217,7 @@ class ThreadedParser(Crawler):
     def __init__(self, *args, **kwargs):
         """TODO: to be defined1. """
         """Initialize the internal page queue and call super().__init__."""
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._internal_queue = queue.Queue()
         self._internal_producer_finished = threading.Event()
 
@@ -248,8 +247,10 @@ class ThreadedParser(Crawler):
                 page_url = self._internal_queue.get(timeout=2)
             except queue.Empty:
                 logger.debug('Could not get item from queue.')
-                if self._internal_producer_finished.is_set()
-                return
+                if self._internal_producer_finished.is_set():
+                    return
+                else:
+                    continue
             page = self._load_page(page_url)
             try:
                 logger.debug('Parsing {} ...'.format(page_url))
