@@ -176,6 +176,19 @@ class Crawler():
         """
         return False
 
+    def _set_manga_info(self, url, page=None):
+        """Set some information about the current manga in this instance.  This
+        info can be used by other methods in the class.  This implementation
+        does nothing but it can be overwritten by subclasses which would like
+        to save some information befor or after loading the initial page.
+
+        :url: the url of the initial page
+        :page: the initial page or None
+        :returns: None
+
+        """
+        pass
+
     def _load_page(self, url):
         """Load the given url.  Handle the exceptions given in
         self.HANDLED_EXCEPTIONS and retry to load the page.
@@ -316,6 +329,7 @@ class LinearPageCrawler(Crawler):
         if after:
             logger.debug('Loading initial page ...')
             page = self._load_page(url)
+            self._set_manga_info(url, page)
             try:
                 _, url, _, _ = self._parse(page)
             except AttributeError:
@@ -403,6 +417,7 @@ class LinearChapterDirectPageCrawler(ThreadedParser):
         """
         logger.debug('Loading initial page ...')
         page = self._load_page(url)
+        self._set_manga_info(url, page)
         next_chapter = self._next(page)
         logger.debug('The next chapter is at {}.'.format(next_chapter))
         if not after:
@@ -493,6 +508,7 @@ class DirectPageCrawler(ThreadedParser):
         :returns: None
 
         """
+        self._set_manga_info(url)
         for page_url in self._find_pages(url, after):
             self._page_queue.put(page_url)
         for _ in range(self.PARSER_COUNT):
