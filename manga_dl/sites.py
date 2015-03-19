@@ -6,9 +6,6 @@ import re
 import urllib
 
 
-from bs4 import BeautifulSoup
-
-
 from . import crawler
 
 
@@ -153,12 +150,11 @@ class Xkcd(crawler.DirectPageCrawler):
     PROTOCOL = 'http'
     METAPAGE = 'http://xkcd.com/archive'
 
-    def _parse_meta_page(self, page, url, after):
+    def _parse_meta_page(self, html, url, after):
         logger.debug('Enter Xkcd._parse_meta_page')
         threshold = int(url.rstrip('/').split('/')[-1])
         if after:
             threshold += 1
-        html = BeautifulSoup(page)
         for tag in html.find('div', id='middleContainer').find_all('a'):
             url = int(tag['href'].strip('/'))
             if url >= threshold:

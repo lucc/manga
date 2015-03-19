@@ -9,7 +9,7 @@ import threading
 import urllib.request
 
 
-from bs4 import BeautifulSoup
+import bs4
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class Crawler():
     PROTOCOL = ''
     DOMAIN = ''
     HANDLED_EXCEPTIONS = ()
+    PRE_PARSER = bs4.BeautifulSoup
     # (urllib.request.http.client.BadStatusLine, urllib.error.HTTPError,
     # urllib.error.URLError)
 
@@ -185,7 +186,8 @@ class Crawler():
         """
         for _ in range(RETRIES):
             try:
-                return urllib.request.urlopen(url)
+                page = urllib.request.urlopen(url)
+                break
             except self.HANDLED_EXCEPTIONS as e:
                 if self._ignore_exception(e):
                     logger.warning(
@@ -201,6 +203,7 @@ class Crawler():
             logger.warning(
                 'Retry count for {} exceeded.  Giving up.'.format(url))
             return
+        return self.PRE_PARSER(page)
 
 
 @notimplemented('_key', '_img', '_filename')
@@ -268,18 +271,17 @@ class ThreadedParser(Crawler):
             logger.debug('Starting parser thread ...')
             self._thread(self._parse_worker)
 
-    def _parse(self, page):
+    def _parse(self, html):
         """This method returns a tupel of a key, the image url and the filename
         to downlowd to.  It is intended for use in the parser thread, where
         only this information needs to be extracted from a page.  A subclass
         should either implement the methods self._key(html), self._img(html)
         and self._filename(html) or overwrite this method.
 
-        :page: the page as retuned by self._load_page(url)
+        :html: the page as retuned by self._load_page(url)
         :returns: a triple of key, image url and filen name
 
         """
-        html = BeautifulSoup(page)
         key = self._key(html)
         img = self._img(html)
         filename = self._filename(html)
@@ -344,14 +346,17 @@ class LinearPageCrawler(Crawler):
                 return
             yield key, img, filename
 
-    def _parse(self, page):
+    def _parse(self, html):
         """This method returns a tupel of a key, the next url, the image url
         and the filename to downlowd to.  It should extract these information
         from the supplied html page inline.
+
+        :html: the page as retuned by self._load_page(url)
+        :returns: a quadrupel of key, next url, image url and filen name
+
         """
         # This is just a dummy implementation which could be overwritten.
         # The actual implementation can extract these information inline.
-        html = BeautifulSoup(page)
         key = self._key(html)
         next = self._next(html)
         img = self._img(html)
@@ -365,7 +370,7 @@ class LinearPageCrawler(Crawler):
         :retruns: a key to identify the job to load from the given page
 
         """
-        return str(self._chapter(html)) + '-' + str(self._page(html))
+        return '{}-{}'.format(self._chapter(html), self._page(html))
 
 
 class DirectPageCrawler(ThreadedParser):
