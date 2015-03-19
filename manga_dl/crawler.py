@@ -16,6 +16,28 @@ logger = logging.getLogger(__name__)
 RETRIES = 10
 
 
+def notimplemented(*methods):
+    """Add several methods to a class which all simply raise a
+    NotImplementedError and tell the programmer to implement this method in a
+    subclass.  Every method name is checked and if the class already has a
+    method with this name, it is skipped.
+
+    :cls: the class which should recive the methods
+    :*methods: a list of method names (strings)
+    :returns: the class with the methods added
+
+    """
+    def decorator(cls):
+        def dummy(*args, **kwargs): raise NotImplementedError()
+        for name in methods:
+            if hasattr(cls, name):
+                continue
+            else:
+                setattr(cls, name, dummy)
+        return cls
+    return decorator
+
+
 class Crawler():
 
     """Generic crawler to crawl a site and extract all image links from it.
@@ -182,6 +204,7 @@ class Crawler():
             return
 
 
+@notimplemented('_key', '_img', '_filename')
 class ThreadedParser(Crawler):
 
     """A threaded parser has an internal queue onto which urls will be pushed.
@@ -262,18 +285,19 @@ class ThreadedParser(Crawler):
         return key, img, filename
 
 
+@notimplemented('_next', '_img', '_manga', '_chapter', '_page', '_filename')
 class LinearPageCrawler(Crawler):
 
     """A linear crawler that will load the pages sequentially in order to find
     the image download links and filenames.
 
     This is a generic class that implements the general crawling logic.  Site
-     specific parsing methods have to be implemented by subclasses.  These are:
-         cls._next(html)
-         cls._img(html)
-         cls._manga(html)
-         cls._chapter(html)
-         cls._page(html)
+    specific parsing methods have to be implemented by subclasses.  These are:
+        cls._next(html)
+        cls._img(html)
+        cls._manga(html)
+        cls._chapter(html)
+        cls._page(html)
     """
 
     def start(self, url, after=False):
