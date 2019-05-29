@@ -8,9 +8,10 @@ import argparse
 import asyncio
 import logging
 import pathlib
-import urllib.request
+import urllib.parse
 
 import bs4
+import requests
 
 
 NAME = 'comic-dl'
@@ -64,9 +65,22 @@ class Queue:
         return await self._queue.join()
 
 
-class Parser:
+class Site:
 
     DOMAIN = None
+
+    def __init__(self):
+        self._session = requests.Session()
+
+    def get(self, url):
+        req = self._session.get(url)
+        req.raise_for_status()
+        return req.content
+
+    def download(self, url, path):
+        data = self.get(url)
+        with path.open("w") as f:
+            f.write(data)
 
     @staticmethod
     def extract_images(html):
@@ -86,7 +100,7 @@ class Parser:
                 return maybe
 
 
-class MangaLike(Parser):
+class MangaLike(Site):
 
     DOMAIN = "mangalike.net"
 
@@ -109,16 +123,19 @@ async def worker(site, queue, directory):
         job = await queue.get()
         logging.debug("Processing %s", job)
         if type(job) is PageDownload:
-            page = urllib.request.urlopen(job.url)
+            page = site.get(job.url)
+            logging.debug("Parsing html ...")
             html = bs4.BeautifulSoup(page)
             for url in site.extract_pages(html):
+                logging.debug("storing new page job")
                 await queue.put(PageDownload(url))
             for url, filename in site.extract_images(html):
+                logging.debug("storing new image job")
                 await queue.put(FileDownload(url, filename))
         else:
             filename = directory/job.path
             try:
-                urllib.request.urlretrieve(job.url, filename)
+                site.download(job.url, filename)
             except urllib.error.ContentTooShortError:
                 filename.remove()
                 logger.exception('Could not download %s to %s.', url, filename)
@@ -139,7 +156,7 @@ async def main():
     parser.add_argument("url", help="the url to start downloading")
     args = parser.parse_args()
 
-    parser = Parser.find_parser(args.url)
+    site = Site.find_parser(args.url)()
     logging.basicConfig(level=args.debug)
 
     queue = Queue()
@@ -148,7 +165,7 @@ async def main():
     logging.debug("setting up task pool")
     tasks = []
     for i in range(3):
-        task = asyncio.create_task(worker(parser, queue, args.directory))
+        task = asyncio.create_task(worker(site, queue, args.directory))
         tasks.append(task)
 
     await queue.join()
