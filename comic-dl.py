@@ -83,8 +83,10 @@ class Site:
 
     DOMAIN = None
 
-    def __init__(self):
+    def __init__(self, queue, directory):
         self._session = requests.Session()
+        self.queue = queue
+        self.directory = directory
 
     def get(self, url):
         req = self._session.get(url)
@@ -113,6 +115,43 @@ class Site:
             if maybe:
                 return maybe
 
+    async def start(self):
+        while True:
+            job = await self.queue.get()
+            logging.debug("Processing %s", job)
+            try:
+                if type(job) is PageDownload:
+                    await self.handle_page(job)
+                else:
+                    self.handle_image(job)
+            except Exception as e:
+                logging.exception("Processing of %s failed: %s", job, e)
+            self.queue.task_done()
+
+    async def handle_page(self, job):
+        page = self.get(job.url)
+        html = bs4.BeautifulSoup(page)
+        for url in self.extract_pages(html):
+            await self.queue.put(PageDownload(url))
+        for url, filename in self.extract_images(html):
+            await self.queue.put(FileDownload(url, filename))
+        logging.info('Finished parsing %s', job.url)
+
+    def handle_image(self, job):
+        filename = self.directory / job.path
+        if filename.exists():
+            logging.debug("The file %s was already loaded.", filename)
+        else:
+            filename.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                self.download(job.url, filename)
+            except urllib.error.ContentTooShortError:
+                filename.remove()
+                logging.exception('Could not download %s to %s.',
+                                  url, filename)
+            else:
+                logging.info('Done: %s -> %s', url, filename)
+
 
 class MangaLike(Site):
 
@@ -132,38 +171,6 @@ class MangaLike(Site):
         return [opt['data-redirect'] for opt in opts]
 
 
-async def worker(site, queue, directory):
-    while True:
-        job = await queue.get()
-        logging.debug("Processing %s", job)
-        try:
-            if type(job) is PageDownload:
-                page = site.get(job.url)
-                logging.debug("Parsing html ...")
-                html = bs4.BeautifulSoup(page)
-                for url in site.extract_pages(html):
-                    await queue.put(PageDownload(url))
-                for url, filename in site.extract_images(html):
-                    await queue.put(FileDownload(url, filename))
-            else:
-                filename = directory/job.path
-                if filename.exists():
-                    logging.debug("The file %s was already loaded.", filename)
-                else:
-                    filename.parent.mkdir(parents=True, exist_ok=True)
-                    try:
-                        site.download(job.url, filename)
-                    except urllib.error.ContentTooShortError:
-                        filename.remove()
-                        logging.exception('Could not download %s to %s.',
-                                          url, filename)
-                    else:
-                        logging.info('Done: %s -> %s', url, filename)
-        except Exception as e:
-            logging.exception("Processing of %s failed: %s", job, e)
-        queue.task_done()
-
-
 async def main():
 
     parser = argparse.ArgumentParser(
@@ -175,17 +182,16 @@ async def main():
                         const=logging.DEBUG)
     parser.add_argument("url", help="the url to start downloading")
     args = parser.parse_args()
-
-    site = Site.find_parser(args.url)()
     logging.basicConfig(level=args.debug)
 
     queue = Queue()
+    site = Site.find_parser(args.url)(queue, args.directory)
     await queue.put(PageDownload(args.url))
 
     logging.debug("setting up task pool")
     tasks = []
     for i in range(3):
-        task = asyncio.create_task(worker(site, queue, args.directory))
+        task = asyncio.create_task(site.start())
         tasks.append(task)
 
     await queue.join()
