@@ -135,25 +135,27 @@ async def worker(site, queue, directory):
     while True:
         job = await queue.get()
         logging.debug("Processing %s", job)
-        if type(job) is PageDownload:
-            page = site.get(job.url)
-            logging.debug("Parsing html ...")
-            html = bs4.BeautifulSoup(page)
-            for url in site.extract_pages(html):
-                logging.debug("storing new page job")
-                await queue.put(PageDownload(url))
-            for url, filename in site.extract_images(html):
-                logging.debug("storing new image job")
-                await queue.put(FileDownload(url, filename))
-        else:
-            filename = directory/job.path
-            try:
-                site.download(job.url, filename)
-            except urllib.error.ContentTooShortError:
-                filename.remove()
-                logger.exception('Could not download %s to %s.', url, filename)
+        try:
+            if type(job) is PageDownload:
+                page = site.get(job.url)
+                logging.debug("Parsing html ...")
+                html = bs4.BeautifulSoup(page)
+                for url in site.extract_pages(html):
+                    await queue.put(PageDownload(url))
+                for url, filename in site.extract_images(html):
+                    await queue.put(FileDownload(url, filename))
             else:
-                logger.info('Done: {} -> {}'.format(url, filename))
+                filename = directory/job.path
+                try:
+                    site.download(job.url, filename)
+                except urllib.error.ContentTooShortError:
+                    filename.remove()
+                    logger.exception('Could not download %s to %s.',
+                                     url, filename)
+                else:
+                    logger.info('Done: %s -> %s', url, filename)
+        except Exception as e:
+            logging.exception("Processing of %s failed: %s", job, e)
         queue.task_done()
 
 
