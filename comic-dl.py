@@ -64,9 +64,7 @@ class Queue:
     async def put(self, item):
         async with self._lock:
             if item in self._set:
-                logging.debug("Item %s is already queued.", item)
                 return
-            logging.debug("Queueing item %s.", item)
             self._set.add(item)
             return await self._queue.put(item)
 
@@ -76,6 +74,9 @@ class Queue:
 
     async def join(self):
         return await self._queue.join()
+
+    def task_done(self):
+        return self._queue.task_done()
 
 
 class Site:
