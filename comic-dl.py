@@ -93,7 +93,7 @@ class Site:
 
     def download(self, url, path):
         data = self.get(url)
-        with path.open("w") as f:
+        with path.open("wb") as f:
             f.write(data)
 
     @staticmethod
@@ -147,6 +147,7 @@ async def worker(site, queue, directory):
                     await queue.put(FileDownload(url, filename))
             else:
                 filename = directory/job.path
+                filename.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     site.download(job.url, filename)
                 except urllib.error.ContentTooShortError:
