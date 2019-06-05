@@ -151,10 +151,10 @@ async def worker(site, queue, directory):
                     site.download(job.url, filename)
                 except urllib.error.ContentTooShortError:
                     filename.remove()
-                    logger.exception('Could not download %s to %s.',
-                                     url, filename)
+                    logging.exception('Could not download %s to %s.',
+                                      url, filename)
                 else:
-                    logger.info('Done: %s -> %s', url, filename)
+                    logging.info('Done: %s -> %s', url, filename)
         except Exception as e:
             logging.exception("Processing of %s failed: %s", job, e)
         queue.task_done()
