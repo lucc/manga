@@ -168,7 +168,7 @@ class MangaLike(Site):
     @staticmethod
     def extract_pages(html):
         opts = html.find('div', class_='chapter-selection').find_all('option')
-        return [opt['data-redirect'] for opt in opts]
+        return reversed([opt['data-redirect'] for opt in opts])
 
 
 async def main():
