@@ -148,9 +148,9 @@ class Site:
             except urllib.error.ContentTooShortError:
                 filename.remove()
                 logging.exception('Could not download %s to %s.',
-                                  url, filename)
+                                  job.url, filename)
             else:
-                logging.info('Done: %s -> %s', url, filename)
+                logging.info('Done: %s -> %s', job.url, filename)
 
 
 class MangaLike(Site):
