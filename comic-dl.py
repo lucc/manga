@@ -30,6 +30,12 @@ class PageDownload(Job):
     def __str__(self):
         return "PageDownload({})".format(self.url)
 
+    def __hash__(self):
+        return hash((self.__class__, self.url))
+
+    def __eq__(self, other):
+        return (type(self), self.url) == (type(other), other.url)
+
 
 class FileDownload(Job):
 
@@ -39,6 +45,13 @@ class FileDownload(Job):
 
     def __str__(self):
         return "FileDownload(url={}, path={})".format(self.url, self.path)
+
+    def __hash__(self):
+        return hash((self.__class__, self.url, self.path))
+
+    def __eq__(self, other):
+        return (type(self), self.url, self.path) == \
+                (type(other), other.url, other.path)
 
 
 class Queue:
