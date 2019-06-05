@@ -162,8 +162,10 @@ class MangaLike(Site):
         chapter = pathlib.Path(html.find('li', class_='active').text.strip())
         imgs = html.find('div', class_='reading-content').find_all('img')
         urls = [img['src'].strip() for img in imgs]
-        jobs = zip(urls, [chapter/'{}.jpg'.format(i) for i in range(len(urls))])
-        return jobs
+        count = len(urls)
+        fmt = '{{:0{}}}.jpg'.format(len(str(count)))
+        for i, url in zip(range(count), urls):
+            yield url, chapter / fmt.format(i)
 
     @staticmethod
     def extract_pages(html):
