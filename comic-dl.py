@@ -147,15 +147,18 @@ async def worker(site, queue, directory):
                     await queue.put(FileDownload(url, filename))
             else:
                 filename = directory/job.path
-                filename.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    site.download(job.url, filename)
-                except urllib.error.ContentTooShortError:
-                    filename.remove()
-                    logging.exception('Could not download %s to %s.',
-                                      url, filename)
+                if filename.exists():
+                    logging.debug("The file %s was already loaded.", filename)
                 else:
-                    logging.info('Done: %s -> %s', url, filename)
+                    filename.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        site.download(job.url, filename)
+                    except urllib.error.ContentTooShortError:
+                        filename.remove()
+                        logging.exception('Could not download %s to %s.',
+                                          url, filename)
+                    else:
+                        logging.info('Done: %s -> %s', url, filename)
         except Exception as e:
             logging.exception("Processing of %s failed: %s", job, e)
         queue.task_done()
