@@ -7,6 +7,7 @@ A crawler/download script to download mangas and other comics from some websites
 import argparse
 import asyncio
 import logging
+import os.path
 import pathlib
 import urllib.parse
 
@@ -171,6 +172,28 @@ class MangaLike(Site):
     def extract_pages(html):
         opts = html.find('div', class_='chapter-selection').find_all('option')
         return reversed([opt['data-redirect'] for opt in opts])
+
+
+class Taadd(Site):
+
+    DOMAIN = "www.taadd.com"
+
+    @staticmethod
+    def extract_images(html):
+        img = html.find("img", id="comicpic")
+        url = img["src"]
+        extension = os.path.splitext(url)[1]
+        current = html.find('select', id='page').find('option', selected=True)
+        number = current.text
+        chapter = pathlib.Path(img["alt"])
+        yield url, chapter / (number + extension)
+
+    @staticmethod
+    def extract_pages(html):
+        for opt in html.find_all("select", id="chapter")[1].find_all("option"):
+            yield opt["value"]
+        for opt in html.find("select", id="page").find_all("option"):
+            yield opt["value"]
 
 
 async def main():
