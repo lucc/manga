@@ -205,6 +205,7 @@ async def main():
         default=pathlib.Path(), type=pathlib.Path)
     parser.add_argument("--debug", default=logging.INFO, action="store_const",
                         const=logging.DEBUG)
+    parser.add_argument('--version', action='version', version=VERSION)
     parser.add_argument("url", help="the url to start downloading")
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
