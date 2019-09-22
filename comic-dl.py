@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os.path
 import pathlib
+import pickle
 import urllib.parse
 
 import bs4
@@ -57,9 +58,12 @@ class FileDownload(Job):
 
 class Queue:
 
-    def __init__(self):
-        self._set = set()
+    def __init__(self, state={}):
+        self._set = set(state.keys())
         self._queue = asyncio.Queue()
+        for job, done in state.items():
+            if not done:
+                self._queue.put_nowait(job)
         self._lock = asyncio.Lock()
 
     async def put(self, item):
@@ -78,6 +82,17 @@ class Queue:
 
     def task_done(self):
         return self._queue.task_done()
+
+    def dump(self, filename):
+        dump = {}
+        while not self._queue.empty():
+            item = self._queue.get_nowait()
+            dump[item] = False
+            self._queue.task_done()
+        for item in self._set.difference(dump.keys()):
+            dump[item] = True
+        with open(filename, 'wb') as fp:
+            pickle.dump(dump, fp)
 
 
 class Site:
@@ -210,7 +225,13 @@ async def main():
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
 
-    queue = Queue()
+    statefile = args.directory / 'state.pickle'
+    if statefile.exists():
+        with open(statefile, 'rb') as fp:
+            state = pickle.load(fp)
+        queue = Queue(state)
+    else:
+        queue = Queue()
     site = Site.find_parser(args.url)(queue, args.directory)
     await queue.put(PageDownload(args.url))
 
@@ -224,6 +245,7 @@ async def main():
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+    queue.dump(statefile)
 
 
 if __name__ == "__main__":
