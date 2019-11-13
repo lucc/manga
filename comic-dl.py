@@ -116,11 +116,11 @@ class Site:
 
     @staticmethod
     def extract_images(html):
-        raise NotImplemented
+        raise NotImplementedError
 
     @staticmethod
     def extract_pages(html):
-        raise NotImplemented
+        raise NotImplementedError
 
     @classmethod
     def find_parser(cls, url):
