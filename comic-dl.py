@@ -189,6 +189,30 @@ class MangaLike(Site):
         return reversed([opt['data-redirect'] for opt in opts])
 
 
+class MangaReader(Site):
+
+    DOMAIN = "www.mangareader.net"
+
+    @staticmethod
+    def extract_images(html):
+        img = html.find(id='img')
+        url = img['src']
+        extension = os.path.splitext(url)[1]
+        chapter = pathlib.Path(html.find(id='mangainfo').h1.string)
+        filename = chapter / (img['alt'] + extension)
+        yield url, filename
+
+    @classmethod
+    def extract_pages(cls, html):
+        page_options = html.find(id="pageMenu").find_all("option")
+        pages = [page["value"] for page in page_options]
+        chapter_links = html.find(id="mangainfofooter").table.find_all("a")
+        chapter_links.reverse()
+        chapters = [chapter["href"] for chapter in chapter_links]
+        for path in pages + chapters:
+            yield "https://" + cls.DOMAIN + path
+
+
 class Taadd(Site):
 
     DOMAIN = "www.taadd.com"
