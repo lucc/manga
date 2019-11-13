@@ -7,4 +7,5 @@ setup(
     author='Lucas Hoffmann',
     scripts=['comic_dl.py'],
     version='0.5-dev',
+    install_requires=['beautifulsoup4', 'requests'],
 )
