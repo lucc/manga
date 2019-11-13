@@ -260,10 +260,7 @@ async def main():
     await queue.put(PageDownload(args.url))
 
     logging.debug("setting up task pool")
-    tasks = []
-    for i in range(3):
-        task = asyncio.create_task(site.start())
-        tasks.append(task)
+    tasks = [asyncio.create_task(site.start()) for _ in range(3)]
 
     await queue.join()
     for task in tasks:
