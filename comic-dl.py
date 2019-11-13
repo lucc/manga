@@ -162,7 +162,7 @@ class Site:
             try:
                 self.download(job.url, filename)
             except urllib.error.ContentTooShortError:
-                filename.remove()
+                filename.unlink()
                 logging.exception('Could not download %s to %s.',
                                   job.url, filename)
             else:
