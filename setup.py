@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup
-import manga_dl
 
 setup(
-    name=manga_dl.name,
+    name='comic-dl',
     author='Lucas Hoffmann',
-    version='.'.join(map(str, manga_dl.__version__)),
-    packages=['manga_dl'],
-    entry_points={'console_scripts': ['manga-dl = manga_dl.cli:main']}
+    scripts=['comic_dl.py'],
+    version='0.5',
+    install_requires=['beautifulsoup4', 'requests'],
 )
