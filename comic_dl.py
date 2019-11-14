@@ -192,6 +192,21 @@ class Site:
             else:
                 logging.info('Done: %s -> %s', job.url, filename)
 
+    def dump(self, filename: pathlib.Path) -> None:
+        self.queue.dump(filename)
+
+    @classmethod
+    async def load(cls, filename: pathlib.Path, url: str) -> "Site":
+        with filename.open("rb") as fp:
+            state = pickle.load(fp)
+        # If all pages have previously been loaded remove one, to ensure that
+        # we load at least one page and find updates.
+        if all(state.values()):
+            state.pop(PageDownload(url), None)
+        queue: Queue[Job] = Queue(state)
+        await queue.put(PageDownload(url))
+        return cls(queue, filename.parent)
+
 
 class MangaReader(Site):
 
@@ -265,24 +280,18 @@ class Xkcd(Site):
 async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
     statefile = directory / 'state.pickle'
     if statefile.exists():
-        with statefile.open('rb') as fp:
-            state = pickle.load(fp)
-        # If all pages have previously been loaded remove one, to ensure that
-        # we load at least one page and find updates.
-        if all(state.values()):
-            state.pop(PageDownload(url), None)
-        queue: Queue[Job] = Queue(state)
+        site = await Site.load(statefile, url)
     else:
-        queue = Queue()
-    site = crawler(queue, directory)
-    await queue.put(PageDownload(url))
+        queue: Queue[Job] = Queue()
+        site = crawler(queue, directory)
+        await queue.put(PageDownload(url))
     logging.debug("setting up task pool")
     tasks = [asyncio.create_task(site.start()) for _ in range(3)]
     await queue.join()
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    queue.dump(statefile)
+    site.dump(statefile)
 
 
 def main() -> None:
