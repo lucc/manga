@@ -6,6 +6,6 @@ setup(
     name='comic-dl',
     author='Lucas Hoffmann',
     scripts=['comic_dl.py'],
-    version='0.5',
+    version='0.6-dev',
     install_requires=['beautifulsoup4', 'requests'],
 )
