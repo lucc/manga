@@ -17,7 +17,7 @@ import requests
 
 
 NAME = 'comic-dl'
-VERSION = '0.5-dev'
+VERSION = '0.5'
 
 
 class Job:
