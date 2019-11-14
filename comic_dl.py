@@ -267,6 +267,10 @@ async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
     if statefile.exists():
         with statefile.open('rb') as fp:
             state = pickle.load(fp)
+        # If all pages have previously been loaded remove one, to ensure that
+        # we load at least one page and find updates.
+        if all(state.values()):
+            state.pop(PageDownload(url), None)
         queue: Queue[Job] = Queue(state)
     else:
         queue = Queue()
