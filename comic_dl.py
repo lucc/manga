@@ -193,26 +193,6 @@ class Site:
                 logging.info('Done: %s -> %s', job.url, filename)
 
 
-class MangaLike(Site):
-
-    DOMAIN = "mangalike.net"
-
-    @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
-        chapter = pathlib.Path(html.find('li', class_='active').text.strip())
-        imgs = html.find('div', class_='reading-content').find_all('img')
-        urls = [img['src'].strip() for img in imgs]
-        count = len(urls)
-        fmt = '{{:0{}}}.jpg'.format(len(str(count)))
-        for i, url in zip(range(count), urls):
-            yield url, chapter / fmt.format(i)
-
-    @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
-        opts = html.find('div', class_='chapter-selection').find_all('option')
-        return reversed([opt['data-redirect'] for opt in opts])
-
-
 class MangaReader(Site):
 
     DOMAIN = "www.mangareader.net"
