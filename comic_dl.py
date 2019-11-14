@@ -259,8 +259,28 @@ class Taadd(Site):
             yield opt["value"]
 
 
-async def main() -> None:
+async def start(url: str, directory: pathlib.Path) -> None:
+    statefile = directory / 'state.pickle'
+    if statefile.exists():
+        with open(statefile, 'rb') as fp:
+            state = pickle.load(fp)
+            queue: Queue[Job] = Queue(state)
+    else:
+        queue = Queue()
+        site = Site.find_parser(url)(queue, directory) # type: ignore
+    await queue.put(PageDownload(url))
 
+    logging.debug("setting up task pool")
+    tasks = [asyncio.create_task(site.start()) for _ in range(3)]
+
+    await queue.join()
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    queue.dump(statefile)
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog=NAME, description="Download manga from some websites")
     parser.add_argument(
@@ -273,25 +293,8 @@ async def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
 
-    statefile = args.directory / 'state.pickle'
-    if statefile.exists():
-        with open(statefile, 'rb') as fp:
-            state = pickle.load(fp)
-            queue: Queue[Job] = Queue(state)
-    else:
-        queue = Queue()
-        site = Site.find_parser(args.url)(queue, args.directory) # type: ignore
-    await queue.put(PageDownload(args.url))
-
-    logging.debug("setting up task pool")
-    tasks = [asyncio.create_task(site.start()) for _ in range(3)]
-
-    await queue.join()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
-    queue.dump(statefile)
+    asyncio.run(start(args.url, args.directory))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
