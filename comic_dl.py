@@ -145,14 +145,15 @@ class Site:
         raise NotImplementedError
 
     @classmethod
-    def find_parser(cls, url: str) -> Optional[Type["Site"]]:
+    def find_crawler(cls, url: str) -> Type["Site"]:
         if cls.DOMAIN and urllib.parse.urlparse(url).hostname == cls.DOMAIN:
             return cls
         for subcls in cls.__subclasses__():
-            maybe = subcls.find_parser(url)
-            if maybe:
-                return maybe
-        return None
+            try:
+                return subcls.find_crawler(url)
+            except NotImplementedError:
+                pass
+        raise NotImplementedError
 
     async def start(self) -> None:
         while True:
@@ -262,7 +263,7 @@ class Xkcd(Site):
             yield "https://" + cls.DOMAIN + "/"
 
 
-async def start(url: str, directory: pathlib.Path) -> None:
+async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
     statefile = directory / 'state.pickle'
     if statefile.exists():
         with statefile.open('rb') as fp:
@@ -270,12 +271,10 @@ async def start(url: str, directory: pathlib.Path) -> None:
         queue: Queue[Job] = Queue(state)
     else:
         queue = Queue()
-    site = Site.find_parser(url)(queue, directory) # type: ignore
+    site = crawler(queue, directory)
     await queue.put(PageDownload(url))
-
     logging.debug("setting up task pool")
     tasks = [asyncio.create_task(site.start()) for _ in range(3)]
-
     await queue.join()
     for task in tasks:
         task.cancel()
@@ -295,8 +294,12 @@ def main() -> None:
     parser.add_argument("url", help="the url to start downloading")
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
-
-    asyncio.run(start(args.url, args.directory))
+    try:
+        crawler = Site.find_crawler(args.url)
+    except NotImplementedError:
+        parser.exit(1, "No crawler available for {}.\n".format(
+            urllib.parse.urlsplit(args.url).hostname or args.url))
+    asyncio.run(start(crawler, args.url, args.directory))
 
 
 if __name__ == "__main__":
