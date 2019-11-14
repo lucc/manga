@@ -62,3 +62,16 @@ class StaticParserTests(unittest.TestCase):
         ]
         actual = list(comic_dl.Taadd.extract_pages(html))
         self.assertListEqual(actual, expected)
+
+    def test_xkcd(self):
+        html = load_html("xkcd.html")
+        expected = [
+            ("https://imgs.xkcd.com/comics/machine_learning_captcha.png",
+             pathlib.Path("2228.png"))
+        ]
+        actual = list(comic_dl.Xkcd.extract_images(html))
+        self.assertListEqual(actual, expected)
+        expected = ["https://xkcd.com/{}/".format(i) for i in range(1, 2228)
+                    if i != 404]
+        actual = list(comic_dl.Xkcd.extract_pages(html))
+        self.assertListEqual(actual, expected)
