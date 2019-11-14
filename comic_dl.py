@@ -10,6 +10,8 @@ import logging
 import os.path
 import pathlib
 import pickle
+from typing import cast, Dict, Iterable, Generic, Optional, Tuple, Type, TypeVar
+import urllib.error
 import urllib.parse
 
 import bs4
@@ -18,6 +20,8 @@ import requests
 
 NAME = 'comic-dl'
 VERSION = '0.6-dev'
+T = TypeVar("T")
+Images = Iterable[Tuple[str, pathlib.Path]]
 
 
 class Job:
@@ -26,64 +30,82 @@ class Job:
 
 class PageDownload(Job):
 
-    def __init__(self, url):
+    def __init__(self, url: str):
         self.url = url
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "PageDownload({})".format(self.url)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.__class__, self.url))
 
-    def __eq__(self, other):
-        return (type(self), self.url) == (type(other), other.url)
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, type(self)) and self.url == other.url
 
 
 class FileDownload(Job):
 
-    def __init__(self, url, path):
+    def __init__(self, url: str, path: pathlib.Path):
         self.url = url
         self.path = path
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "FileDownload(url={}, path={})".format(self.url, self.path)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.__class__, self.url, self.path))
 
-    def __eq__(self, other):
-        return (type(self), self.url, self.path) == \
-                (type(other), other.url, other.path)
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, type(self)) \
+            and (self.url, self.path) == (other.url, other.path)
 
 
-class Queue:
+class Queue(Generic[T]):
+    """An asynchrounous queue with duplicate detection.
 
-    def __init__(self, state={}):
+    The queue caches items that are added and ignores them if they are added
+    again.  The interface should mostly be identcal to asyncio.Queue.
+    """
+
+    def __init__(self, state: Optional[Dict[T, bool]] = None) -> None:
+        """Initialize the queue optionally filling some entries
+
+        :param state: an optional dictionary of entries to put in the queue.
+            The keys are the items for the queue, the values indicate if the
+            item still needs to be retrieved from the queue
+        """
+        state = state or {}
         self._set = set(state.keys())
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[T] = asyncio.Queue()
         for job, done in state.items():
             if not done:
                 self._queue.put_nowait(job)
         self._lock = asyncio.Lock()
 
-    async def put(self, item):
+    async def put(self, item: T) -> None:
         async with self._lock:
             if item in self._set:
                 return
             self._set.add(item)
             return await self._queue.put(item)
 
-    async def get(self):
+    async def get(self) -> T:
         async with self._lock:
             return await self._queue.get()
 
-    async def join(self):
-        return await self._queue.join()
+    async def join(self) -> None:
+        await self._queue.join()  # TODO
 
-    def task_done(self):
+    def task_done(self) -> None:
         return self._queue.task_done()
 
-    def dump(self, filename):
+    def dump(self, filename: pathlib.Path) -> None:
+        """Dump the internal state of the queue to a file
+
+        The file can be loaded again with pickle and the state can be used to
+        recreate a new Queue object which will pick up where this Queue left
+        of.
+        """
         dump = {}
         while not self._queue.empty():
             item = self._queue.get_nowait()
@@ -97,54 +119,56 @@ class Queue:
 
 class Site:
 
-    DOMAIN = None
+    DOMAIN: str = None  # type: ignore
 
-    def __init__(self, queue, directory):
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
         self._session = requests.Session()
         self.queue = queue
         self.directory = directory
 
-    def get(self, url):
+    def get(self, url: str) -> bytes:
         req = self._session.get(url)
         req.raise_for_status()
         return req.content
 
-    def download(self, url, path):
+    def download(self, url: str, path: pathlib.Path) -> None:
         data = self.get(url)
         with path.open("wb") as f:
             f.write(data)
 
     @staticmethod
-    def extract_images(html):
+    def extract_images(html: bs4.BeautifulSoup) -> Images:
         raise NotImplementedError
 
     @staticmethod
-    def extract_pages(html):
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
         raise NotImplementedError
 
     @classmethod
-    def find_parser(cls, url):
+    def find_parser(cls, url: str) -> Optional[Type["Site"]]:
         if cls.DOMAIN and urllib.parse.urlparse(url).hostname == cls.DOMAIN:
             return cls
         for subcls in cls.__subclasses__():
             maybe = subcls.find_parser(url)
             if maybe:
                 return maybe
+        return None
 
-    async def start(self):
+    async def start(self) -> None:
         while True:
-            job = await self.queue.get()
+            job: Job = await self.queue.get()
             logging.debug("Processing %s", job)
             try:
-                if type(job) is PageDownload:
+                if isinstance(job, PageDownload):
                     await self.handle_page(job)
                 else:
+                    job = cast(FileDownload, job)
                     self.handle_image(job)
             except Exception as e:
                 logging.exception("Processing of %s failed: %s", job, e)
             self.queue.task_done()
 
-    async def handle_page(self, job):
+    async def handle_page(self, job: PageDownload) -> None:
         page = self.get(job.url)
         html = bs4.BeautifulSoup(page)
         for url in self.extract_pages(html):
@@ -153,7 +177,7 @@ class Site:
             await self.queue.put(FileDownload(url, filename))
         logging.info('Finished parsing %s', job.url)
 
-    def handle_image(self, job):
+    def handle_image(self, job: FileDownload) -> None:
         filename = self.directory / job.path
         if filename.exists():
             logging.debug("The file %s was already loaded.", filename)
@@ -174,7 +198,7 @@ class MangaLike(Site):
     DOMAIN = "mangalike.net"
 
     @staticmethod
-    def extract_images(html):
+    def extract_images(html: bs4.BeautifulSoup) -> Images:
         chapter = pathlib.Path(html.find('li', class_='active').text.strip())
         imgs = html.find('div', class_='reading-content').find_all('img')
         urls = [img['src'].strip() for img in imgs]
@@ -184,7 +208,7 @@ class MangaLike(Site):
             yield url, chapter / fmt.format(i)
 
     @staticmethod
-    def extract_pages(html):
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
         opts = html.find('div', class_='chapter-selection').find_all('option')
         return reversed([opt['data-redirect'] for opt in opts])
 
@@ -194,7 +218,7 @@ class MangaReader(Site):
     DOMAIN = "www.mangareader.net"
 
     @staticmethod
-    def extract_images(html):
+    def extract_images(html: bs4.BeautifulSoup) -> Images:
         img = html.find(id='img')
         url = img['src']
         extension = os.path.splitext(url)[1]
@@ -203,7 +227,7 @@ class MangaReader(Site):
         yield url, filename
 
     @classmethod
-    def extract_pages(cls, html):
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
         page_options = html.find(id="pageMenu").find_all("option")
         pages = [page["value"] for page in page_options]
         chapter_links = html.find(id="mangainfofooter").table.find_all("a")
@@ -218,7 +242,7 @@ class Taadd(Site):
     DOMAIN = "www.taadd.com"
 
     @staticmethod
-    def extract_images(html):
+    def extract_images(html: bs4.BeautifulSoup) -> Images:
         img = html.find("img", id="comicpic")
         url = img["src"]
         extension = os.path.splitext(url)[1]
@@ -228,14 +252,14 @@ class Taadd(Site):
         yield url, chapter / (number + extension)
 
     @staticmethod
-    def extract_pages(html):
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
         for opt in html.find_all("select", id="chapter")[1].find_all("option"):
             yield opt["value"]
         for opt in html.find("select", id="page").find_all("option"):
             yield opt["value"]
 
 
-async def main():
+async def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog=NAME, description="Download manga from some websites")
@@ -253,10 +277,10 @@ async def main():
     if statefile.exists():
         with open(statefile, 'rb') as fp:
             state = pickle.load(fp)
-        queue = Queue(state)
+            queue: Queue[Job] = Queue(state)
     else:
         queue = Queue()
-    site = Site.find_parser(args.url)(queue, args.directory)
+        site = Site.find_parser(args.url)(queue, args.directory) # type: ignore
     await queue.put(PageDownload(args.url))
 
     logging.debug("setting up task pool")
