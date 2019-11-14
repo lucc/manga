@@ -264,10 +264,10 @@ async def start(url: str, directory: pathlib.Path) -> None:
     if statefile.exists():
         with statefile.open('rb') as fp:
             state = pickle.load(fp)
-            queue: Queue[Job] = Queue(state)
+        queue: Queue[Job] = Queue(state)
     else:
         queue = Queue()
-        site = Site.find_parser(url)(queue, directory) # type: ignore
+    site = Site.find_parser(url)(queue, directory) # type: ignore
     await queue.put(PageDownload(url))
 
     logging.debug("setting up task pool")
