@@ -113,7 +113,7 @@ class Queue(Generic[T]):
             self._queue.task_done()
         for item in self._set.difference(dump.keys()):
             dump[item] = True
-        with open(filename, 'wb') as fp:
+        with filename.open('wb') as fp:
             pickle.dump(dump, fp)
 
 
@@ -262,7 +262,7 @@ class Taadd(Site):
 async def start(url: str, directory: pathlib.Path) -> None:
     statefile = directory / 'state.pickle'
     if statefile.exists():
-        with open(statefile, 'rb') as fp:
+        with statefile.open('rb') as fp:
             state = pickle.load(fp)
             queue: Queue[Job] = Queue(state)
     else:
