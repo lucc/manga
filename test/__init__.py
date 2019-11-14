@@ -3,7 +3,7 @@ import unittest
 
 import bs4
 
-import comic_dl
+from comic_dl import FileDownload, PageDownload, MangaReader, Taadd, Xkcd
 
 
 def load_html(name):
@@ -17,22 +17,25 @@ class StaticParserTests(unittest.TestCase):
 
     def test_mangareader(self):
         html = load_html("mangareader.html")
-        expected = [('https://i10.mangareader.net/azumi/1/azumi-4734639.jpg',
-                     pathlib.Path('Azumi 1/Azumi 1 - Page 1.jpg'))]
-        actual = list(comic_dl.MangaReader.extract_images(html))
+        expected = [FileDownload(
+            'https://i10.mangareader.net/azumi/1/azumi-4734639.jpg',
+            pathlib.Path('Azumi 1/Azumi 1 - Page 1.jpg'))]
+        actual = list(MangaReader.extract_images(html))
         self.assertListEqual(actual, expected)
         expected = ['https://www.mangareader.net/azumi/1'] + [
             'https://www.mangareader.net/azumi/1/{}'.format(i)
             for i in range(2, 44)
         ] + ['https://www.mangareader.net/azumi/2']
-        actual = list(comic_dl.MangaReader.extract_pages(html))
+        expected = [PageDownload(item) for item in expected]
+        actual = list(MangaReader.extract_pages(html))
         self.assertListEqual(actual, expected)
 
     def test_taadd(self):
         html = load_html("taadd.html")
-        expected = [('https://pic2.taadd.com/comics/pic4/1/35521/487056/dd146c8b92b70b918ddc8a40b27b1f50.jpg',
-                     pathlib.Path('Battle Angel Alita Last Order 1/1.jpg'))]
-        actual = list(comic_dl.Taadd.extract_images(html))
+        expected = [FileDownload(
+            'https://pic2.taadd.com/comics/pic4/1/35521/487056/dd146c8b92b70b918ddc8a40b27b1f50.jpg',
+            pathlib.Path('Battle Angel Alita Last Order 1/1.jpg'))]
+        actual = list(Taadd.extract_images(html))
         self.assertListEqual(actual, expected)
         expected = [
             'https://www.taadd.com/chapter/BattleAngelAlitaLastOrder{}/{}/'.format(i, j)
@@ -60,18 +63,18 @@ class StaticParserTests(unittest.TestCase):
             'https://www.taadd.com/chapter/BattleAngelAlitaLastOrder1/487056-{}.html'.format(i)
             for i in range(1, 46)
         ]
-        actual = list(comic_dl.Taadd.extract_pages(html))
+        expected = [PageDownload(item) for item in expected]
+        actual = list(Taadd.extract_pages(html))
         self.assertListEqual(actual, expected)
 
     def test_xkcd(self):
         html = load_html("xkcd.html")
-        expected = [
-            ("https://imgs.xkcd.com/comics/machine_learning_captcha.png",
-             pathlib.Path("2228.png"))
-        ]
-        actual = list(comic_dl.Xkcd.extract_images(html))
+        expected = [FileDownload(
+            "https://imgs.xkcd.com/comics/machine_learning_captcha.png",
+            pathlib.Path("2228.png"))]
+        actual = list(Xkcd.extract_images(html))
         self.assertListEqual(actual, expected)
-        expected = ["https://xkcd.com/{}/".format(i) for i in range(1, 2228)
-                    if i != 404]
-        actual = list(comic_dl.Xkcd.extract_pages(html))
+        expected = [PageDownload("https://xkcd.com/{}/".format(i))
+                    for i in range(1, 2228) if i != 404]
+        actual = list(Xkcd.extract_pages(html))
         self.assertListEqual(actual, expected)

@@ -21,7 +21,6 @@ import requests
 NAME = 'comic-dl'
 VERSION = '0.6-dev'
 T = TypeVar("T")
-Images = Iterable[Tuple[str, pathlib.Path]]
 
 
 class Job:
@@ -137,11 +136,11 @@ class Site:
             f.write(data)
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         raise NotImplementedError
 
     @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         raise NotImplementedError
 
     @classmethod
@@ -172,10 +171,10 @@ class Site:
     async def handle_page(self, job: PageDownload) -> None:
         page = self.get(job.url)
         html = bs4.BeautifulSoup(page)
-        for url in self.extract_pages(html):
-            await self.queue.put(PageDownload(url))
-        for url, filename in self.extract_images(html):
-            await self.queue.put(FileDownload(url, filename))
+        for i in self.extract_pages(html):
+            await self.queue.put(i)
+        for j in self.extract_images(html):
+            await self.queue.put(j)
         logging.info('Finished parsing %s', job.url)
 
     def handle_image(self, job: FileDownload) -> None:
@@ -199,23 +198,23 @@ class MangaReader(Site):
     DOMAIN = "www.mangareader.net"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         img = html.find(id='img')
         url = img['src']
         extension = os.path.splitext(url)[1]
         chapter = pathlib.Path(html.find(id='mangainfo').h1.string)
         filename = chapter / (img['alt'] + extension)
-        yield url, filename
+        yield FileDownload(url, filename)
 
     @classmethod
-    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         page_options = html.find(id="pageMenu").find_all("option")
         pages = [page["value"] for page in page_options]
         chapter_links = html.find(id="mangainfofooter").table.find_all("a")
         chapter_links.reverse()
         chapters = [chapter["href"] for chapter in chapter_links]
         for path in pages + chapters:
-            yield "https://" + cls.DOMAIN + path
+            yield PageDownload("https://" + cls.DOMAIN + path)
 
 
 class Taadd(Site):
@@ -223,21 +222,21 @@ class Taadd(Site):
     DOMAIN = "www.taadd.com"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         img = html.find("img", id="comicpic")
         url = img["src"]
         extension = os.path.splitext(url)[1]
         current = html.find('select', id='page').find('option', selected=True)
         number = current.text
         chapter = pathlib.Path(img["alt"])
-        yield url, chapter / (number + extension)
+        yield FileDownload(url, chapter / (number + extension))
 
     @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         for opt in html.find_all("select", id="chapter")[1].find_all("option"):
-            yield opt["value"]
+            yield PageDownload(opt["value"])
         for opt in html.find("select", id="page").find_all("option"):
-            yield opt["value"]
+            yield PageDownload(opt["value"])
 
 
 class Xkcd(Site):
@@ -245,22 +244,22 @@ class Xkcd(Site):
     DOMAIN = "xkcd.com"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         image_url = html.find("div", id="comic").img["src"]
         extension = os.path.splitext(image_url)[1]
         base_url = html.find("meta", property="og:url")["content"]
         filename = urllib.parse.urlsplit(base_url).path.strip("/") + extension
-        yield "https:" + image_url, pathlib.Path(filename)
+        yield FileDownload("https:" + image_url, pathlib.Path(filename))
 
     @classmethod
-    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         if html.find("a", rel="next")["href"] == "#":
             base_url = html.find("meta", property="og:url")["content"]
             number = int(urllib.parse.urlsplit(base_url).path.strip("/"))
             for i in filter(lambda x: x != 404, range(1, number)):
-                yield "https://" + cls.DOMAIN + "/{}/".format(i)
+                yield PageDownload("https://" + cls.DOMAIN + "/{}/".format(i))
         else:
-            yield "https://" + cls.DOMAIN + "/"
+            yield PageDownload("https://" + cls.DOMAIN + "/")
 
 
 async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
