@@ -259,6 +259,29 @@ class Taadd(Site):
             yield opt["value"]
 
 
+class Xkcd(Site):
+
+    DOMAIN = "xkcd.com"
+
+    @staticmethod
+    def extract_images(html: bs4.BeautifulSoup) -> Images:
+        image_url = html.find("div", id="comic").img["src"]
+        extension = os.path.splitext(image_url)[1]
+        base_url = html.find("meta", property="og:url")["content"]
+        filename = urllib.parse.urlsplit(base_url).path.strip("/") + extension
+        yield "https:" + image_url, pathlib.Path(filename)
+
+    @classmethod
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
+        if html.find("a", rel="next")["href"] == "#":
+            base_url = html.find("meta", property="og:url")["content"]
+            number = int(urllib.parse.urlsplit(base_url).path.strip("/"))
+            for i in filter(lambda x: x != 404, range(1, number)):
+                yield "https://" + cls.DOMAIN + "/{}/".format(i)
+        else:
+            yield "https://" + cls.DOMAIN + "/"
+
+
 async def start(url: str, directory: pathlib.Path) -> None:
     statefile = directory / 'state.pickle'
     if statefile.exists():
