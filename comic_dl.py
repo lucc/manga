@@ -10,6 +10,7 @@ import logging
 import os.path
 import pathlib
 import pickle
+import sys
 from typing import cast, Dict, Iterable, Generic, Optional, Tuple, Type, TypeVar
 import urllib.error
 import urllib.parse
@@ -192,20 +193,31 @@ class Site:
             else:
                 logging.info('Done: %s -> %s', job.url, filename)
 
-    def dump(self, filename: pathlib.Path) -> None:
+    def dump(self) -> None:
+        filename = self.directory / 'state.pickle'
         self.queue.dump(filename)
 
     @classmethod
-    async def load(cls, filename: pathlib.Path, url: str) -> "Site":
-        with filename.open("rb") as fp:
+    async def load(cls, directory: pathlib.Path) -> "Site":
+        statefile = directory / 'state.pickle'
+        with statefile.open("rb") as fp:
             state = pickle.load(fp)
-        # If all pages have previously been loaded remove one, to ensure that
-        # we load at least one page and find updates.
-        if all(state.values()):
-            state.pop(PageDownload(url), None)
+        page = cls.get_resume_page(state)
+        state.pop(page)
         queue: Queue[Job] = Queue(state)
-        await queue.put(PageDownload(url))
-        return cls(queue, filename.parent)
+        await queue.put(page)
+        crawler = cls.find_crawler(page.url)(queue, directory)
+        return crawler
+
+    @staticmethod
+    def get_resume_page(state: Dict[Job, bool]) -> PageDownload:
+        pages = {k: v for k, v in state.items() if isinstance(k, PageDownload)}
+        unloaded = [page for page, done in pages.items() if not done]
+        if unloaded:
+            return unloaded[0]
+        if pages:
+            return pages.popitem()[0]
+        raise ValueError("Found no page to resume loading.")
 
 
 class MangaReader(Site):
@@ -277,21 +289,28 @@ class Xkcd(Site):
             yield PageDownload("https://" + cls.DOMAIN + "/")
 
 
-async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
-    statefile = directory / 'state.pickle'
-    if statefile.exists():
-        site = await Site.load(statefile, url)
-    else:
+async def start(args: argparse.Namespace) -> None:
+    try:
+        crawler = await Site.load(args.directory)
+    except FileNotFoundError:
+        if args.resume:
+            sys.exit("No statefile found to resume from.")
+        try:
+            Crawler = Site.find_crawler(args.url)
+        except NotImplementedError:
+            sys.exit("No crawler available for {}.".format(
+                urllib.parse.urlsplit(args.url).hostname or args.url))
         queue: Queue[Job] = Queue()
-        site = crawler(queue, directory)
-        await queue.put(PageDownload(url))
+        await queue.put(PageDownload(args.url))
+        crawler = Crawler(queue, args.directory)
+    # Set up the event loop and run the tasks
     logging.debug("setting up task pool")
-    tasks = [asyncio.create_task(site.start()) for _ in range(3)]
-    await queue.join()
+    tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
+    await crawler.queue.join()
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    site.dump(statefile)
+    crawler.dump()
 
 
 def main() -> None:
@@ -303,15 +322,14 @@ def main() -> None:
     parser.add_argument("--debug", default=logging.INFO, action="store_const",
                         const=logging.DEBUG)
     parser.add_argument('--version', action='version', version=VERSION)
-    parser.add_argument("url", help="the url to start downloading")
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--resume", action="store_true",
+                        help="resume downloading from a state file")
+    target.add_argument("url", nargs="?", help="the url to start downloading")
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
-    try:
-        crawler = Site.find_crawler(args.url)
-    except NotImplementedError:
-        parser.exit(1, "No crawler available for {}.\n".format(
-            urllib.parse.urlsplit(args.url).hostname or args.url))
-    asyncio.run(start(crawler, args.url, args.directory))
+    logging.debug("Command line arguments: %s", args)
+    asyncio.run(start(args))
 
 
 if __name__ == "__main__":
