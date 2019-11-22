@@ -99,22 +99,19 @@ class Queue(Generic[T]):
     def task_done(self) -> None:
         return self._queue.task_done()
 
-    def dump(self, filename: pathlib.Path) -> None:
-        """Dump the internal state of the queue to a file
+    def get_state(self) -> Dict[T, bool]:
+        """Get a dict representation of the internal state
 
-        The file can be loaded again with pickle and the state can be used to
-        recreate a new Queue object which will pick up where this Queue left
-        of.
+        The dict can be fead to the constructor to recreate the queue.
         """
-        dump = {}
+        state = {}
         while not self._queue.empty():
             item = self._queue.get_nowait()
-            dump[item] = False
+            state[item] = False
             self._queue.task_done()
-        for item in self._set.difference(dump.keys()):
-            dump[item] = True
-        with filename.open('wb') as fp:
-            pickle.dump(dump, fp)
+        for item in self._set.difference(state.keys()):
+            state[item] = True
+        return state
 
 
 class Site:
@@ -194,9 +191,16 @@ class Site:
                 logging.info('Done: %s -> %s', job.url, filename)
 
     def dump(self) -> None:
+        """Dump the internal state of the queue to a file
+
+        The file can be loaded again with self.load() and the new crawler can
+        continue where this one left of.
+        """
         self.directory.mkdir(parents=True, exist_ok=True)
         filename = self.directory / 'state.pickle'
-        self.queue.dump(filename)
+        state = self.queue.get_state()
+        with filename.open("wb") as fp:
+            pickle.dump(state, fp)
 
     @classmethod
     async def load(cls, directory: pathlib.Path) -> "Site":
