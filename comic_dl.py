@@ -194,6 +194,7 @@ class Site:
                 logging.info('Done: %s -> %s', job.url, filename)
 
     def dump(self) -> None:
+        self.directory.mkdir(parents=True, exist_ok=True)
         filename = self.directory / 'state.pickle'
         self.queue.dump(filename)
 
