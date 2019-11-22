@@ -10,7 +10,7 @@ def load_html(name):
     file = pathlib.Path("test") / name
     with file.open() as f:
         data = f.read()
-    return bs4.BeautifulSoup(data)
+    return bs4.BeautifulSoup(data, features="lxml")
 
 
 class StaticParserTests(unittest.TestCase):

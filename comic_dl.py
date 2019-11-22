@@ -168,7 +168,7 @@ class Site:
 
     async def handle_page(self, job: PageDownload) -> None:
         page = self.get(job.url)
-        html = bs4.BeautifulSoup(page)
+        html = bs4.BeautifulSoup(page, features="lxml")
         for i in self.extract_pages(html):
             await self.queue.put(i)
         for j in self.extract_images(html):
