@@ -10,6 +10,7 @@ import logging
 import os.path
 import pathlib
 import pickle
+import sys
 from typing import cast, Dict, Iterable, Generic, Optional, Tuple, Type, TypeVar
 import urllib.error
 import urllib.parse
@@ -21,7 +22,6 @@ import requests
 NAME = 'comic-dl'
 VERSION = '0.6-dev'
 T = TypeVar("T")
-Images = Iterable[Tuple[str, pathlib.Path]]
 
 
 class Job:
@@ -99,22 +99,19 @@ class Queue(Generic[T]):
     def task_done(self) -> None:
         return self._queue.task_done()
 
-    def dump(self, filename: pathlib.Path) -> None:
-        """Dump the internal state of the queue to a file
+    def get_state(self) -> Dict[T, bool]:
+        """Get a dict representation of the internal state
 
-        The file can be loaded again with pickle and the state can be used to
-        recreate a new Queue object which will pick up where this Queue left
-        of.
+        The dict can be fead to the constructor to recreate the queue.
         """
-        dump = {}
+        state = {}
         while not self._queue.empty():
             item = self._queue.get_nowait()
-            dump[item] = False
+            state[item] = False
             self._queue.task_done()
-        for item in self._set.difference(dump.keys()):
-            dump[item] = True
-        with filename.open('wb') as fp:
-            pickle.dump(dump, fp)
+        for item in self._set.difference(state.keys()):
+            state[item] = True
+        return state
 
 
 class Site:
@@ -137,11 +134,11 @@ class Site:
             f.write(data)
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         raise NotImplementedError
 
     @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         raise NotImplementedError
 
     @classmethod
@@ -172,10 +169,10 @@ class Site:
     async def handle_page(self, job: PageDownload) -> None:
         page = self.get(job.url)
         html = bs4.BeautifulSoup(page)
-        for url in self.extract_pages(html):
-            await self.queue.put(PageDownload(url))
-        for url, filename in self.extract_images(html):
-            await self.queue.put(FileDownload(url, filename))
+        for i in self.extract_pages(html):
+            await self.queue.put(i)
+        for j in self.extract_images(html):
+            await self.queue.put(j)
         logging.info('Finished parsing %s', job.url)
 
     def handle_image(self, job: FileDownload) -> None:
@@ -193,29 +190,63 @@ class Site:
             else:
                 logging.info('Done: %s -> %s', job.url, filename)
 
+    def dump(self) -> None:
+        """Dump the internal state of the queue to a file
+
+        The file can be loaded again with self.load() and the new crawler can
+        continue where this one left of.
+        """
+        self.directory.mkdir(parents=True, exist_ok=True)
+        filename = self.directory / 'state.pickle'
+        state = self.queue.get_state()
+        with filename.open("wb") as fp:
+            pickle.dump(state, fp)
+
+    @classmethod
+    async def load(cls, directory: pathlib.Path) -> "Site":
+        statefile = directory / 'state.pickle'
+        with statefile.open("rb") as fp:
+            state = pickle.load(fp)
+        page = cls.get_resume_page(state)
+        state.pop(page)
+        queue: Queue[Job] = Queue(state)
+        await queue.put(page)
+        crawler = cls.find_crawler(page.url)(queue, directory)
+        return crawler
+
+    @staticmethod
+    def get_resume_page(state: Dict[Job, bool]) -> PageDownload:
+        pages = {k: v for k, v in state.items() if isinstance(k, PageDownload)}
+        unloaded = [page for page, done in pages.items() if not done]
+        if unloaded:
+            return unloaded[0]
+        if pages:
+            return pages.popitem()[0]
+        raise ValueError("Found no page to resume loading.")
+
 
 class MangaReader(Site):
 
     DOMAIN = "www.mangareader.net"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         img = html.find(id='img')
         url = img['src']
         extension = os.path.splitext(url)[1]
         chapter = pathlib.Path(html.find(id='mangainfo').h1.string)
         filename = chapter / (img['alt'] + extension)
-        yield url, filename
+        yield FileDownload(url, filename)
 
     @classmethod
-    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         page_options = html.find(id="pageMenu").find_all("option")
         pages = [page["value"] for page in page_options]
         chapter_links = html.find(id="mangainfofooter").table.find_all("a")
         chapter_links.reverse()
         chapters = [chapter["href"] for chapter in chapter_links]
         for path in pages + chapters:
-            yield "https://" + cls.DOMAIN + path
+            yield PageDownload("https://" + cls.DOMAIN + path)
 
 
 class Taadd(Site):
@@ -223,21 +254,21 @@ class Taadd(Site):
     DOMAIN = "www.taadd.com"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         img = html.find("img", id="comicpic")
         url = img["src"]
         extension = os.path.splitext(url)[1]
         current = html.find('select', id='page').find('option', selected=True)
         number = current.text
         chapter = pathlib.Path(img["alt"])
-        yield url, chapter / (number + extension)
+        yield FileDownload(url, chapter / (number + extension))
 
     @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         for opt in html.find_all("select", id="chapter")[1].find_all("option"):
-            yield opt["value"]
+            yield PageDownload(opt["value"])
         for opt in html.find("select", id="page").find_all("option"):
-            yield opt["value"]
+            yield PageDownload(opt["value"])
 
 
 class Xkcd(Site):
@@ -245,41 +276,46 @@ class Xkcd(Site):
     DOMAIN = "xkcd.com"
 
     @staticmethod
-    def extract_images(html: bs4.BeautifulSoup) -> Images:
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         image_url = html.find("div", id="comic").img["src"]
         extension = os.path.splitext(image_url)[1]
         base_url = html.find("meta", property="og:url")["content"]
         filename = urllib.parse.urlsplit(base_url).path.strip("/") + extension
-        yield "https:" + image_url, pathlib.Path(filename)
+        yield FileDownload("https:" + image_url, pathlib.Path(filename))
 
     @classmethod
-    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[str]:
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         if html.find("a", rel="next")["href"] == "#":
             base_url = html.find("meta", property="og:url")["content"]
             number = int(urllib.parse.urlsplit(base_url).path.strip("/"))
             for i in filter(lambda x: x != 404, range(1, number)):
-                yield "https://" + cls.DOMAIN + "/{}/".format(i)
+                yield PageDownload("https://" + cls.DOMAIN + "/{}/".format(i))
         else:
-            yield "https://" + cls.DOMAIN + "/"
+            yield PageDownload("https://" + cls.DOMAIN + "/")
 
 
-async def start(crawler: Type[Site], url: str, directory: pathlib.Path) -> None:
-    statefile = directory / 'state.pickle'
-    if statefile.exists():
-        with statefile.open('rb') as fp:
-            state = pickle.load(fp)
-        queue: Queue[Job] = Queue(state)
-    else:
-        queue = Queue()
-    site = crawler(queue, directory)
-    await queue.put(PageDownload(url))
+async def start(args: argparse.Namespace) -> None:
+    try:
+        crawler = await Site.load(args.directory)
+    except FileNotFoundError:
+        if args.resume:
+            sys.exit("No statefile found to resume from.")
+        try:
+            Crawler = Site.find_crawler(args.url)
+        except NotImplementedError:
+            sys.exit("No crawler available for {}.".format(
+                urllib.parse.urlsplit(args.url).hostname or args.url))
+        queue: Queue[Job] = Queue()
+        await queue.put(PageDownload(args.url))
+        crawler = Crawler(queue, args.directory)
+    # Set up the event loop and run the tasks
     logging.debug("setting up task pool")
-    tasks = [asyncio.create_task(site.start()) for _ in range(3)]
-    await queue.join()
+    tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
+    await crawler.queue.join()
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    queue.dump(statefile)
+    crawler.dump()
 
 
 def main() -> None:
@@ -291,15 +327,14 @@ def main() -> None:
     parser.add_argument("--debug", default=logging.INFO, action="store_const",
                         const=logging.DEBUG)
     parser.add_argument('--version', action='version', version=VERSION)
-    parser.add_argument("url", help="the url to start downloading")
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--resume", action="store_true",
+                        help="resume downloading from a state file")
+    target.add_argument("url", nargs="?", help="the url to start downloading")
     args = parser.parse_args()
     logging.basicConfig(level=args.debug)
-    try:
-        crawler = Site.find_crawler(args.url)
-    except NotImplementedError:
-        parser.exit(1, "No crawler available for {}.\n".format(
-            urllib.parse.urlsplit(args.url).hostname or args.url))
-    asyncio.run(start(crawler, args.url, args.directory))
+    logging.debug("Command line arguments: %s", args)
+    asyncio.run(start(args))
 
 
 if __name__ == "__main__":
