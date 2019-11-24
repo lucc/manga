@@ -15,6 +15,29 @@ def load_html(name):
 
 class StaticParserTests(unittest.TestCase):
 
+    def test_islieb(self):
+        html = load_html('islieb.html')
+        filename = "2015/08/islieb-was-kerle-wollen.png"
+        expected = [FileDownload(
+            "http://islieb.de/blog/wp-content/uploads/" + filename,
+            pathlib.Path(filename))]
+        actual = list(Islieb.extract_images(html))
+        self.assertListEqual(actual, expected)
+        actual = list(Islieb.extract_pages(html))
+        self.assertListEqual(actual, [Islieb.archive_page])
+        html = load_html('islieb-archive.html')
+        filename = '2014/02/spinnen-phobie.png'
+        expected = [FileDownload(
+            'https://islieb.de/blog/wp-content/uploads/' + filename,
+            pathlib.Path(filename))]
+        actual = list(Islieb.extract_images(html))
+        self.assertListEqual(actual, expected)
+        expected = [Islieb.archive_page] + [
+            PageDownload(link['href']) for link in
+            html.find('ul', id='lcp_instance_0').find_all('a')]
+        actual = list(Islieb.extract_pages(html))
+        self.assertListEqual(actual, expected)
+
     def test_mangareader(self):
         html = load_html("mangareader.html")
         expected = [FileDownload(
