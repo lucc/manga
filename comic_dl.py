@@ -208,11 +208,13 @@ class Site:
         with statefile.open("rb") as fp:
             state = pickle.load(fp)
         page = cls.get_resume_page(state)
+        crawler = cls.find_crawler(page.url)
+        if crawler.get_resume_page != cls.get_resume_page:
+            page = crawler.get_resume_page(state)
         state.pop(page)
         queue: Queue[Job] = Queue(state)
         await queue.put(page)
-        crawler = cls.find_crawler(page.url)(queue, directory)
-        return crawler
+        return crawler(queue, directory)
 
     @staticmethod
     def get_resume_page(state: Dict[Job, bool]) -> PageDownload:
