@@ -3,7 +3,7 @@ import unittest
 
 import bs4
 
-from comic_dl import FileDownload, PageDownload, MangaReader, Taadd, Xkcd
+from comic_dl import *
 
 
 def load_html(name):
@@ -33,12 +33,14 @@ class StaticParserTests(unittest.TestCase):
     def test_taadd(self):
         html = load_html("taadd.html")
         expected = [FileDownload(
-            'https://pic2.taadd.com/comics/pic4/1/35521/487056/dd146c8b92b70b918ddc8a40b27b1f50.jpg',
+            'https://pic2.taadd.com/comics/pic4/1/35521/487056/'
+            'dd146c8b92b70b918ddc8a40b27b1f50.jpg',
             pathlib.Path('Battle Angel Alita Last Order 1/1.jpg'))]
         actual = list(Taadd.extract_images(html))
         self.assertListEqual(actual, expected)
         expected = [
-            'https://www.taadd.com/chapter/BattleAngelAlitaLastOrder{}/{}/'.format(i, j)
+            'https://www.taadd.com/chapter/'
+            'BattleAngelAlitaLastOrder{}/{}/'.format(i, j)
             for i, j in reversed(list(enumerate(
                 [487056, 487061, 487065, 487068, 487072, 487076, 487079,
                  487083, 487089, 487094, 487097, 487100, 487106, 487109,
@@ -60,8 +62,8 @@ class StaticParserTests(unittest.TestCase):
                  487578, 487581, 487584, 487587, 487590, 487593, 487596,
                  487600, 487603, 487609], 1)))
         ] + [
-            'https://www.taadd.com/chapter/BattleAngelAlitaLastOrder1/487056-{}.html'.format(i)
-            for i in range(1, 46)
+            'https://www.taadd.com/chapter/BattleAngelAlitaLastOrder1/'
+            '487056-{}.html'.format(i) for i in range(1, 46)
         ]
         expected = [PageDownload(item) for item in expected]
         actual = list(Taadd.extract_pages(html))
