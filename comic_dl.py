@@ -225,6 +225,31 @@ class Site:
         raise ValueError("Found no page to resume loading.")
 
 
+class Islieb(Site):
+
+    DOMAIN = "islieb.de"
+    archive_page = PageDownload('https://islieb.de/comic-archiv/')
+
+    @staticmethod
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
+        for article in html.find_all('article'):
+            url = article.find('img')['src']
+            filename = pathlib.Path(*url.split('/')[-3:])
+            yield FileDownload(url, filename)
+
+    @classmethod
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
+        yield cls.archive_page
+        archive = html.find('ul', id='lcp_instance_0')
+        if archive:
+            for link in archive.find_all('a'):
+                yield PageDownload(link['href'])
+
+    @classmethod
+    def get_resume_page(cls, state: Dict[Job, bool]) -> PageDownload:
+        return cls.archive_page
+
+
 class MangaReader(Site):
 
     DOMAIN = "www.mangareader.net"
