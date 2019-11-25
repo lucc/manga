@@ -25,7 +25,9 @@ T = TypeVar("T")
 
 
 class Job:
-    pass
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, type(self)) and self.__dict__ == other.__dict__
 
 
 class PageDownload(Job):
@@ -39,9 +41,6 @@ class PageDownload(Job):
     def __hash__(self) -> int:
         return hash((self.__class__, self.url))
 
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, type(self)) and self.url == other.url
-
 
 class FileDownload(Job):
 
@@ -54,10 +53,6 @@ class FileDownload(Job):
 
     def __hash__(self) -> int:
         return hash((self.__class__, self.url, self.path))
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, type(self)) \
-            and (self.url, self.path) == (other.url, other.path)
 
 
 class Queue(Generic[T]):
