@@ -116,7 +116,7 @@ class Queue(Generic[T]):
 
 class Site:
 
-    DOMAIN: str = None  # type: ignore
+    DOMAIN: str
 
     def __init__(self, queue: Queue[Job], directory: pathlib.Path):
         self._session = requests.Session()
@@ -143,7 +143,7 @@ class Site:
 
     @classmethod
     def find_crawler(cls, url: str) -> Type["Site"]:
-        if cls.DOMAIN and urllib.parse.urlparse(url).hostname == cls.DOMAIN:
+        if cls != Site and urllib.parse.urlparse(url).hostname == cls.DOMAIN:
             return cls
         for subcls in cls.__subclasses__():
             try:
