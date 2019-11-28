@@ -276,14 +276,29 @@ class Taadd(Site):
     DOMAIN = "www.taadd.com"
 
     @staticmethod
+    def intpad(i: int, n: int) -> str:
+        return '{{:0{}}}'.format(len(str(n))).format(i)
+
+    @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         img = html.find("img", id="comicpic")
         url = img["src"]
         extension = os.path.splitext(url)[1]
-        current = html.find('select', id='page').find('option', selected=True)
-        number = current.text
-        chapter = pathlib.Path(img["alt"])
-        yield FileDownload(url, chapter / (number + extension))
+        pages = html.find('select', id='page').find_all('option')
+        current_page = [p for p in pages if 'selected' in p.attrs][0]
+        page_number = Taadd.intpad(int(current_page.text), len(pages))
+        chapters = html.find_all("select", id="chapter")[1].find_all("option")
+        chapter_count = len(chapters)
+        chapter_number, chapter_title = [
+            (i, c.text) for i, c in enumerate(reversed(chapters), 1)
+            if 'selected' in c.attrs
+        ][0]
+        chapter_number = Taadd.intpad(chapter_number, chapter_count)
+        filepath = pathlib.Path(
+            '{} {}'.format(chapter_number, chapter_title),
+            '{} {}{}'.format(page_number, img['alt'], extension)
+        )
+        yield FileDownload(url, filepath)
 
     @staticmethod
     def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
