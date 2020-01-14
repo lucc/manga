@@ -16,8 +16,8 @@ from typing import Iterable, Generic, Type, TypeVar
 import urllib.error
 import urllib.parse
 
+import aiohttp
 import bs4
-import requests
 import urllib3.exceptions
 
 
@@ -115,7 +115,8 @@ class Site:
 
     DOMAIN: str
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: requests.Session):
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: aiohttp.ClientSession):
+        self._id = id
         self._session = session
         self.queue = queue
         self.directory = directory
@@ -123,13 +124,13 @@ class Site:
     async def get(self, url: str) -> bytes:
         for _ in range(3):
             try:
-                req = self._session.get(url)
+                async with self._session.get(url) as req:
+                    req.raise_for_status()
+                    return await req.read()
             except urllib3.exceptions.MaxRetryError as err:
                 logging.warning("Failed to connect: %s\nRetrying  ...", err)
                 await asyncio.sleep(3)
                 continue
-            req.raise_for_status()
-            return req.content
         raise urllib3.exceptions.MaxRetryError(None, url)
 
     async def download(self, url: str, path: pathlib.Path) -> None:
@@ -174,6 +175,7 @@ class Site:
 
     async def handle_page(self, job: PageDownload) -> None:
         page = await self.get(job.url)
+        logging.debug("The url %s, returned %s bytes", job, len(page))
         html = bs4.BeautifulSoup(page, features="lxml")
         for i in self.extract_pages(html):
             await self.queue.put(i)
@@ -209,7 +211,7 @@ class Site:
             pickle.dump(state, fp)
 
     @classmethod
-    async def load(cls, directory: pathlib.Path, session: requests.Session) -> "Site":
+    async def load(cls, directory: pathlib.Path, session: aiohttp.ClientSession) -> "Site":
         statefile = directory / 'state.pickle'
         with statefile.open("rb") as fp:
             state = pickle.load(fp)
@@ -286,7 +288,7 @@ class MangaTown(Site):
 
     DOMAIN = "www.mangatown.com"
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: requests.Session):
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: aiohttp.ClientSession):
         super().__init__(queue,  directory, session)
         self._session.headers.update({'referer': 'https://'+self.DOMAIN+'/'})
 
@@ -328,7 +330,7 @@ class Xkcd(Site):
 
 
 async def start(args: argparse.Namespace) -> None:
-    with requests.Session() as session:
+    async with aiohttp.ClientSession() as session:
         try:
             crawler = await Site.load(args.directory, session)
         except FileNotFoundError:
