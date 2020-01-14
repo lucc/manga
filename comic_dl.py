@@ -115,8 +115,8 @@ class Site:
 
     DOMAIN: str
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
-        self._session = requests.Session()
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: requests.Session):
+        self._session = session
         self.queue = queue
         self.directory = directory
 
@@ -207,7 +207,7 @@ class Site:
             pickle.dump(state, fp)
 
     @classmethod
-    async def load(cls, directory: pathlib.Path) -> "Site":
+    async def load(cls, directory: pathlib.Path, session: requests.Session) -> "Site":
         statefile = directory / 'state.pickle'
         with statefile.open("rb") as fp:
             state = pickle.load(fp)
@@ -218,7 +218,7 @@ class Site:
         state.pop(page)
         queue: Queue[Job] = Queue(state)
         await queue.put(page)
-        return crawler(queue, directory)
+        return crawler(queue, directory, session)
 
     @staticmethod
     def get_resume_page(state: dict[Job, bool]) -> PageDownload:
@@ -284,8 +284,8 @@ class MangaTown(Site):
 
     DOMAIN = "www.mangatown.com"
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
-        super().__init__(queue,  directory)
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: requests.Session):
+        super().__init__(queue,  directory, session)
         self._session.headers.update({'referer': 'https://'+self.DOMAIN+'/'})
 
     @staticmethod
@@ -326,26 +326,27 @@ class Xkcd(Site):
 
 
 async def start(args: argparse.Namespace) -> None:
-    try:
-        crawler = await Site.load(args.directory)
-    except FileNotFoundError:
-        if args.resume:
-            sys.exit("No statefile found to resume from.")
+    with requests.Session() as session:
         try:
-            Crawler = Site.find_crawler(args.url)
-        except NotImplementedError:
-            sys.exit("No crawler available for {}.".format(
-                urllib.parse.urlsplit(args.url).hostname or args.url))
-        queue: Queue[Job] = Queue()
-        await queue.put(PageDownload(args.url))
-        crawler = Crawler(queue, args.directory)
-    # Set up the event loop and run the tasks
-    logging.debug("setting up task pool")
-    tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
-    await crawler.queue.join()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+            crawler = await Site.load(args.directory, session)
+        except FileNotFoundError:
+            if args.resume:
+                sys.exit("No statefile found to resume from.")
+            try:
+                Crawler = Site.find_crawler(args.url)
+            except NotImplementedError:
+                sys.exit("No crawler available for {}.".format(
+                    urllib.parse.urlsplit(args.url).hostname or args.url))
+            queue: Queue[Job] = Queue()
+            await queue.put(PageDownload(args.url))
+            crawler = Crawler(queue, args.directory, session)
+        # Set up the event loop and run the tasks
+        logging.debug("setting up task pool")
+        tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
+        await crawler.queue.join()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     crawler.dump()
 
 
