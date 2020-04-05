@@ -17,6 +17,7 @@ import urllib.parse
 
 import bs4
 import requests
+import urllib3.exceptions
 
 
 NAME = 'comic-dl'
@@ -118,13 +119,20 @@ class Site:
         self.queue = queue
         self.directory = directory
 
-    def get(self, url: str) -> bytes:
-        req = self._session.get(url)
-        req.raise_for_status()
-        return req.content
+    async def get(self, url: str) -> bytes:
+        for _ in range(3):
+            try:
+                req = self._session.get(url)
+            except urllib3.exceptions.MaxRetryError as err:
+                logging.warning("Failed to connect: %s\nRetrying  ...", err.message)
+                await asyncio.sleep(3)
+                continue
+            req.raise_for_status()
+            return req.content
+        raise urllib3.exceptions.MaxRetryError
 
-    def download(self, url: str, path: pathlib.Path) -> None:
-        data = self.get(url)
+    async def download(self, url: str, path: pathlib.Path) -> None:
+        data = await self.get(url)
         with path.open("wb") as f:
             f.write(data)
 
@@ -156,13 +164,13 @@ class Site:
                     await self.handle_page(job)
                 else:
                     job = cast(FileDownload, job)
-                    self.handle_image(job)
+                    await self.handle_image(job)
             except Exception as e:
                 logging.exception("Processing of %s failed: %s", job, e)
             self.queue.task_done()
 
     async def handle_page(self, job: PageDownload) -> None:
-        page = self.get(job.url)
+        page = await self.get(job.url)
         html = bs4.BeautifulSoup(page, features="lxml")
         for i in self.extract_pages(html):
             await self.queue.put(i)
@@ -170,14 +178,14 @@ class Site:
             await self.queue.put(j)
         logging.info('Finished parsing %s', job.url)
 
-    def handle_image(self, job: FileDownload) -> None:
+    async def handle_image(self, job: FileDownload) -> None:
         filename = self.directory / job.path
         if filename.exists():
             logging.debug("The file %s was already loaded.", filename)
         else:
             filename.parent.mkdir(parents=True, exist_ok=True)
             try:
-                self.download(job.url, filename)
+                await self.download(job.url, filename)
             except urllib.error.ContentTooShortError:
                 filename.unlink()
                 logging.exception('Could not download %s to %s.',
