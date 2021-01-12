@@ -13,6 +13,30 @@ def load_html(name):
     return bs4.BeautifulSoup(data, features="lxml")
 
 
+class StaticJobTests(unittest.TestCase):
+
+    """Tests for Job and subclasses"""
+
+    def test_page_download_equality(self):
+        self.assertEqual(PageDownload("foo"), PageDownload("foo"))
+
+    def test_file_download_equality(self):
+        cwd = pathlib.Path(".")
+        self.assertEqual(FileDownload("foo", cwd), FileDownload("foo", cwd))
+
+    def test_page_download_inequality(self):
+        self.assertNotEqual(PageDownload("foo"), PageDownload("bar"))
+
+    def test_file_download_inequality_1(self):
+        cwd = pathlib.Path(".")
+        self.assertNotEqual(FileDownload("foo", cwd), FileDownload("bar", cwd))
+
+    def test_file_download_inequality_2(self):
+        p1 = pathlib.Path(".")
+        p2 = pathlib.Path("/")
+        self.assertNotEqual(FileDownload("foo", p1), FileDownload("foo", p2))
+
+
 class StaticParserTests(unittest.TestCase):
 
     def test_islieb(self):
