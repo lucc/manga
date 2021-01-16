@@ -3,7 +3,8 @@ import unittest
 
 import bs4
 
-from comic_dl import *
+from comic_dl import PageDownload, FileDownload
+from comic_dl import Islieb, MangaReader, MangaTown, Xkcd
 
 
 def load_html(name):
@@ -75,6 +76,24 @@ class StaticParserTests(unittest.TestCase):
         ] + ['https://www.mangareader.net/azumi/2']
         expected = [PageDownload(item) for item in expected]
         actual = list(MangaReader.extract_pages(html))
+        self.assertListEqual(actual, expected)
+
+    def test_mangatown(self):
+        html = load_html("mangatown.com.html")
+        expected = [FileDownload("https://zjcdn.mangahere.org/store/manga/"
+                                 "13495/264.0/compressed/v000.jpg",
+                                 pathlib.Path("264.0/v000.jpg"))]
+        actual = list(MangaTown.extract_images(html))
+        self.assertListEqual(actual, expected)
+        base = "https://www.mangatown.com/manga/azumi/"
+        expected = [
+            PageDownload(base + "c{:03}/".format(i)) for i in range(1, 283) if
+            i not in (162, 181, 193, 201, 208, 215, 280)] + [
+            PageDownload(base + "c264/")] + [
+            PageDownload(base + "c264/{}.html".format(i))
+            for i in range(2, 28)] + [
+            PageDownload(base + "c264/featured.html")]
+        actual = list(MangaTown.extract_pages(html))
         self.assertListEqual(actual, expected)
 
     def test_xkcd(self):

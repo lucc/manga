@@ -279,6 +279,23 @@ class MangaReader(Site):
             yield PageDownload("https://" + cls.DOMAIN + path)
 
 
+class MangaTown(Site):
+
+    DOMAIN = "www.mangatown.com"
+
+    @staticmethod
+    def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
+        url = "https:" + html.find("img", id="image")["src"]
+        urlpath = pathlib.Path(urllib.parse.urlparse(url).path)
+        chapter = urlpath.parent.parent.name
+        yield FileDownload(url, pathlib.Path(chapter) / urlpath.name)
+
+    @classmethod
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
+        for option in html.find("div", class_="go_page").find_all("option"):
+            yield PageDownload("https://" + cls.DOMAIN + option["value"])
+
+
 class Xkcd(Site):
 
     DOMAIN = "xkcd.com"
