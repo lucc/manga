@@ -285,10 +285,11 @@ class MangaTown(Site):
 
     @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
-        url = "https:" + html.find("img", id="image")["src"]
-        urlpath = pathlib.Path(urllib.parse.urlparse(url).path)
-        chapter = urlpath.parent.parent.name
-        yield FileDownload(url, pathlib.Path(chapter) / urlpath.name)
+        if img := html.find("img", id="image"):
+            url = "https:" + img["src"]
+            urlpath = pathlib.Path(urllib.parse.urlparse(url).path)
+            chapter = urlpath.parent.parent.name
+            yield FileDownload(url, pathlib.Path(chapter) / urlpath.name)
 
     @classmethod
     def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
