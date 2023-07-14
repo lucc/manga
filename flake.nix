@@ -9,19 +9,20 @@
   {
     packages.x86_64-linux = rec {
 
-      default = pythonPackages.buildPythonPackage {
+      default = pythonPackages.buildPythonApplication {
         name = "comic-dl";
         version = "dev";
+        format = "pyproject";
         src = ./.;
         propagatedBuildInputs = with pythonPackages; [
-          beautifulsoup4 lxml requests
+          beautifulsoup4 lxml requests setuptools
         ];
         doCheck = false;
       };
 
       download-all = pkgs.writeShellScriptBin "download-all" ''
         for f in downloads/*/state.pickle; do
-          ${default}/bin/comic_dl.py -d "''${f%/state.pickle}" --resume
+          ${default}/bin/comic-dl -d "''${f%/state.pickle}" --resume
         done
       '';
 

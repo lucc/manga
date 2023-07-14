@@ -1,0 +1,12 @@
+[project]
+name = "comic-dl"
+authors = [{ name = "Lucas Hoffmann" }]
+version = "0.6-dev"
+dependencies = [
+    "beautifulsoup4",
+    "lxml",
+    "requests"
+]
+
+[project.scripts]
+comic-dl = "comic_dl:main"
