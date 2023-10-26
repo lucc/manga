@@ -11,7 +11,7 @@ import os.path
 import pathlib
 import pickle
 import sys
-from typing import cast, Dict, Iterable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Iterable, Generic, Type, TypeVar
 import urllib.error
 import urllib.parse
 
@@ -63,7 +63,7 @@ class Queue(Generic[T]):
     again.  The interface should mostly be identcal to asyncio.Queue.
     """
 
-    def __init__(self, state: Optional[Dict[T, bool]] = None) -> None:
+    def __init__(self, state: dict[T, bool]|None = None) -> None:
         """Initialize the queue optionally filling some entries
 
         :param state: an optional dictionary of entries to put in the queue.
@@ -95,7 +95,7 @@ class Queue(Generic[T]):
     def task_done(self) -> None:
         return self._queue.task_done()
 
-    def get_state(self) -> Dict[T, bool]:
+    def get_state(self) -> dict[T, bool]:
         """Get a dict representation of the internal state
 
         The dict can be fead to the constructor to recreate the queue.
@@ -160,11 +160,11 @@ class Site:
             job: Job = await self.queue.get()
             logging.debug("Processing %s", job)
             try:
-                if isinstance(job, PageDownload):
-                    await self.handle_page(job)
-                else:
-                    job = cast(FileDownload, job)
-                    await self.handle_image(job)
+                match job:
+                    case PageDownload() as j:
+                        await self.handle_page(j)
+                    case FileDownload() as j:
+                        await self.handle_image(j)
             except Exception as e:
                 logging.exception("Processing of %s failed: %s", job, e)
             self.queue.task_done()
@@ -220,7 +220,7 @@ class Site:
         return crawler(queue, directory)
 
     @staticmethod
-    def get_resume_page(state: Dict[Job, bool]) -> PageDownload:
+    def get_resume_page(state: dict[Job, bool]) -> PageDownload:
         pages = {k: v for k, v in state.items() if isinstance(k, PageDownload)}
         unloaded = [page for page, done in pages.items() if not done]
         if unloaded:
@@ -251,7 +251,7 @@ class Islieb(Site):
                 yield PageDownload(link['href'])
 
     @classmethod
-    def get_resume_page(cls, state: Dict[Job, bool]) -> PageDownload:
+    def get_resume_page(cls, state: dict[Job, bool]) -> PageDownload:
         return cls.archive_page
 
 
