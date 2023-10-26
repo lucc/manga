@@ -283,6 +283,10 @@ class MangaTown(Site):
 
     DOMAIN = "www.mangatown.com"
 
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
+        super().__init__(queue,  directory)
+        self._session.headers.update({'referer': 'https://'+self.DOMAIN+'/'})
+
     @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         if img := html.find("img", id="image"):
