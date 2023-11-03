@@ -18,7 +18,7 @@
           names = (pkgs.lib.trivial.importTOML ./pyproject.toml).project.dependencies;
           packages = builtins.attrValues (pkgs.lib.attrsets.getAttrs names pythonPackages);
         in [ pythonPackages.setuptools ] ++ packages;
-        doCheck = false;
+        checkPhase = "python -m unittest";
       };
 
       download-all = pkgs.writeShellScriptBin "download-all" ''
