@@ -5,17 +5,18 @@
   let
     pkgs = nixpkgs.legacyPackages.x86_64-linux;
     pythonPackages = pkgs.python3Packages;
+    pyproject = (pkgs.lib.trivial.importTOML ./pyproject.toml).project;
   in
   {
     packages.x86_64-linux = rec {
 
       default = pythonPackages.buildPythonApplication {
         name = "comic-dl";
-        version = "dev";
+        version = pyproject.version;
         pyproject = true;
         src = ./.;
         propagatedBuildInputs = let
-          names = (pkgs.lib.trivial.importTOML ./pyproject.toml).project.dependencies;
+          names = pyproject.dependencies;
           packages = builtins.attrValues (pkgs.lib.attrsets.getAttrs names pythonPackages);
         in [ pythonPackages.setuptools ] ++ packages;
         checkPhase = "python -m unittest";

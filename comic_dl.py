@@ -6,6 +6,7 @@ A crawler/download script to download mangas and other comics from some websites
 
 import argparse
 import asyncio
+from importlib.metadata import version
 import logging
 import os.path
 import pathlib
@@ -21,7 +22,7 @@ import urllib3.exceptions
 
 
 NAME = 'comic-dl'
-VERSION = '0.6-dev'
+VERSION = version(NAME)
 T = TypeVar("T")
 
 
