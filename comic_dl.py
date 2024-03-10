@@ -125,12 +125,12 @@ class Site:
             try:
                 req = self._session.get(url)
             except urllib3.exceptions.MaxRetryError as err:
-                logging.warning("Failed to connect: %s\nRetrying  ...", err.message)
+                logging.warning("Failed to connect: %s\nRetrying  ...", err)
                 await asyncio.sleep(3)
                 continue
             req.raise_for_status()
             return req.content
-        raise urllib3.exceptions.MaxRetryError
+        raise urllib3.exceptions.MaxRetryError(None, url)
 
     async def download(self, url: str, path: pathlib.Path) -> None:
         data = await self.get(url)
