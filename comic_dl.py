@@ -156,10 +156,12 @@ class Site:
                 pass
         raise NotImplementedError
 
-    async def start(self) -> None:
+    async def start(self, id: int) -> None:
+        logging.debug("Setting up worker %i", id)
         while True:
+            logging.debug("Worker %s: looking for a job ...", id)
             job: Job = await self.queue.get()
-            logging.debug("Processing %s", job)
+            logging.debug("Worker %s: Processing %s", id, job)
             try:
                 match job:
                     case PageDownload() as j:
@@ -342,7 +344,7 @@ async def start(args: argparse.Namespace) -> None:
             crawler = Crawler(queue, args.directory, session)
         # Set up the event loop and run the tasks
         logging.debug("setting up task pool")
-        tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
+        tasks = [asyncio.create_task(crawler.start(i)) for i in range(3)]
         await crawler.queue.join()
         for task in tasks:
             task.cancel()
