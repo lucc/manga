@@ -343,7 +343,7 @@ async def start(args: argparse.Namespace) -> None:
             crawler = Crawler(queue, args.directory, session)
         # Set up the event loop and run the tasks
         logging.debug("setting up task pool")
-        tasks = [asyncio.create_task(crawler.start(i)) for i in range(3)]
+        tasks = [asyncio.create_task(crawler.start(i)) for i in range(args.jobs)]
         await crawler.queue.join()
         for task in tasks:
             task.cancel()
@@ -360,6 +360,8 @@ def main() -> None:
     parser.add_argument("--debug", default=logging.INFO, action="store_const",
                         const=logging.DEBUG)
     parser.add_argument('--version', action='version', version=VERSION)
+    parser.add_argument("--jobs", "-j", type=int, default=3,
+                        help="number of concurent downloads")
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--resume", action="store_true",
                         help="resume downloading from a state file")
