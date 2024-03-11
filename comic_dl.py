@@ -77,17 +77,14 @@ class Queue(Generic[T]):
         for job, done in state.items():
             if not done:
                 self._queue.put_nowait(job)
-        self._lock = asyncio.Lock()
 
     async def put(self, item: T) -> None:
-        async with self._lock:
-            if item in self._set:
-                return
-            self._set.add(item)
-            return await self._queue.put(item)
+        if item in self._set:
+            return
+        self._set.add(item)
+        return await self._queue.put(item)
 
     async def get(self) -> T:
-        async with self._lock:
             return await self._queue.get()
 
     async def join(self) -> None:
