@@ -291,7 +291,7 @@ class MangaTown(Site):
 
     @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
-        if img := html.find("img", id="image"):
+        for img in html.find_all(MangaTown.match_image_tag):
             url = "https:" + img["src"]
             urlpath = pathlib.Path(urllib.parse.urlparse(url).path)
             chapter = urlpath.parent.parent.name
@@ -301,6 +301,16 @@ class MangaTown(Site):
     def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         for option in html.find("div", class_="go_page").find_all("option"):
             yield PageDownload("https://" + cls.DOMAIN + option["value"])
+
+    @staticmethod
+    def match_image_tag(tag: bs4.Tag):
+        """Match an image tag for the main image in mangatown html page
+
+        :tag: the tag to check
+        :returns: if it is the main image tag
+        """
+        return tag.name == "img" and ("image" in tag.get("class", []) or
+            tag.get("id") == "image")
 
 
 class Xkcd(Site):
