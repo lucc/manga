@@ -16,8 +16,8 @@ from typing import Iterable, Generic, Type, TypeVar
 import urllib.error
 import urllib.parse
 
+import aiohttp
 import bs4
-import requests
 import urllib3.exceptions
 
 
@@ -77,17 +77,14 @@ class Queue(Generic[T]):
         for job, done in state.items():
             if not done:
                 self._queue.put_nowait(job)
-        self._lock = asyncio.Lock()
 
     async def put(self, item: T) -> None:
-        async with self._lock:
-            if item in self._set:
-                return
-            self._set.add(item)
-            return await self._queue.put(item)
+        if item in self._set:
+            return
+        self._set.add(item)
+        return await self._queue.put(item)
 
     async def get(self) -> T:
-        async with self._lock:
             return await self._queue.get()
 
     async def join(self) -> None:
@@ -115,21 +112,22 @@ class Site:
 
     DOMAIN: str
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
-        self._session = requests.Session()
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: aiohttp.ClientSession):
+        self._id = id
+        self._session = session
         self.queue = queue
         self.directory = directory
 
     async def get(self, url: str) -> bytes:
         for _ in range(3):
             try:
-                req = self._session.get(url)
+                async with self._session.get(url) as req:
+                    req.raise_for_status()
+                    return await req.read()
             except urllib3.exceptions.MaxRetryError as err:
                 logging.warning("Failed to connect: %s\nRetrying  ...", err)
                 await asyncio.sleep(3)
                 continue
-            req.raise_for_status()
-            return req.content
         raise urllib3.exceptions.MaxRetryError(None, url)
 
     async def download(self, url: str, path: pathlib.Path) -> None:
@@ -156,10 +154,12 @@ class Site:
                 pass
         raise NotImplementedError
 
-    async def start(self) -> None:
+    async def start(self, id: int) -> None:
+        logging.debug("Setting up worker %i", id)
         while True:
+            logging.debug("Worker %s: looking for a job ...", id)
             job: Job = await self.queue.get()
-            logging.debug("Processing %s", job)
+            logging.debug("Worker %s: Processing %s", id, job)
             try:
                 match job:
                     case PageDownload() as j:
@@ -172,6 +172,7 @@ class Site:
 
     async def handle_page(self, job: PageDownload) -> None:
         page = await self.get(job.url)
+        logging.debug("The url %s, returned %s bytes", job, len(page))
         html = bs4.BeautifulSoup(page, features="lxml")
         for i in self.extract_pages(html):
             await self.queue.put(i)
@@ -207,7 +208,7 @@ class Site:
             pickle.dump(state, fp)
 
     @classmethod
-    async def load(cls, directory: pathlib.Path) -> "Site":
+    async def load(cls, directory: pathlib.Path, session: aiohttp.ClientSession) -> "Site":
         statefile = directory / 'state.pickle'
         with statefile.open("rb") as fp:
             state = pickle.load(fp)
@@ -218,7 +219,7 @@ class Site:
         state.pop(page)
         queue: Queue[Job] = Queue(state)
         await queue.put(page)
-        return crawler(queue, directory)
+        return crawler(queue, directory, session)
 
     @staticmethod
     def get_resume_page(state: dict[Job, bool]) -> PageDownload:
@@ -284,13 +285,13 @@ class MangaTown(Site):
 
     DOMAIN = "www.mangatown.com"
 
-    def __init__(self, queue: Queue[Job], directory: pathlib.Path):
-        super().__init__(queue,  directory)
+    def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: aiohttp.ClientSession):
+        super().__init__(queue,  directory, session)
         self._session.headers.update({'referer': 'https://'+self.DOMAIN+'/'})
 
     @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
-        if img := html.find("img", id="image"):
+        for img in html.find_all(MangaTown.match_image_tag):
             url = "https:" + img["src"]
             urlpath = pathlib.Path(urllib.parse.urlparse(url).path)
             chapter = urlpath.parent.parent.name
@@ -300,6 +301,16 @@ class MangaTown(Site):
     def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         for option in html.find("div", class_="go_page").find_all("option"):
             yield PageDownload("https://" + cls.DOMAIN + option["value"])
+
+    @staticmethod
+    def match_image_tag(tag: bs4.Tag):
+        """Match an image tag for the main image in mangatown html page
+
+        :tag: the tag to check
+        :returns: if it is the main image tag
+        """
+        return tag.name == "img" and ("image" in tag.get("class", []) or
+            tag.get("id") == "image")
 
 
 class Xkcd(Site):
@@ -326,26 +337,27 @@ class Xkcd(Site):
 
 
 async def start(args: argparse.Namespace) -> None:
-    try:
-        crawler = await Site.load(args.directory)
-    except FileNotFoundError:
-        if args.resume:
-            sys.exit("No statefile found to resume from.")
+    async with aiohttp.ClientSession() as session:
         try:
-            Crawler = Site.find_crawler(args.url)
-        except NotImplementedError:
-            sys.exit("No crawler available for {}.".format(
-                urllib.parse.urlsplit(args.url).hostname or args.url))
-        queue: Queue[Job] = Queue()
-        await queue.put(PageDownload(args.url))
-        crawler = Crawler(queue, args.directory)
-    # Set up the event loop and run the tasks
-    logging.debug("setting up task pool")
-    tasks = [asyncio.create_task(crawler.start()) for _ in range(3)]
-    await crawler.queue.join()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+            crawler = await Site.load(args.directory, session)
+        except FileNotFoundError:
+            if args.resume:
+                sys.exit("No statefile found to resume from.")
+            try:
+                Crawler = Site.find_crawler(args.url)
+            except NotImplementedError:
+                sys.exit("No crawler available for {}.".format(
+                    urllib.parse.urlsplit(args.url).hostname or args.url))
+            queue: Queue[Job] = Queue()
+            await queue.put(PageDownload(args.url))
+            crawler = Crawler(queue, args.directory, session)
+        # Set up the event loop and run the tasks
+        logging.debug("setting up task pool")
+        tasks = [asyncio.create_task(crawler.start(i)) for i in range(args.jobs)]
+        await crawler.queue.join()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     crawler.dump()
 
 
@@ -358,6 +370,8 @@ def main() -> None:
     parser.add_argument("--debug", default=logging.INFO, action="store_const",
                         const=logging.DEBUG)
     parser.add_argument('--version', action='version', version=VERSION)
+    parser.add_argument("--jobs", "-j", type=int, default=3,
+                        help="number of concurent downloads")
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--resume", action="store_true",
                         help="resume downloading from a state file")

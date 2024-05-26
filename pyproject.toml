@@ -3,9 +3,10 @@ name = "comic-dl"
 authors = [{ name = "Lucas Hoffmann" }]
 version = "0.6-dev"
 dependencies = [
+    "aiohttp",
     "beautifulsoup4",
     "lxml",
-    "requests"
+    "urllib3",
 ]
 
 [project.scripts]

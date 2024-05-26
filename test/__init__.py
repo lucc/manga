@@ -96,6 +96,18 @@ class StaticParserTests(unittest.TestCase):
         actual = list(MangaTown.extract_pages(html))
         self.assertListEqual(actual, expected)
 
+    def test_mangatown2(self):
+        html = load_html("mangatown.com-2.html")
+        expected = [FileDownload("https://zjcdn.mangahere.org/store/manga"
+                                 f"/31587/051.0/compressed/h00{i}.jpg",
+                                 pathlib.Path(f"051.0/h00{i}.jpg"))
+            for i in range(5)]
+        actual = list(MangaTown.extract_images(html))
+        self.assertListEqual(actual, expected)
+        expected = 559
+        actual = len(list(MangaTown.extract_pages(html)))
+        self.assertEqual(actual, expected)
+
     def test_xkcd(self):
         html = load_html("xkcd.html")
         expected = [FileDownload(
