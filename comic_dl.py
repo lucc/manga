@@ -139,8 +139,8 @@ class Site:
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
         raise NotImplementedError
 
-    @staticmethod
-    def extract_pages(html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
+    @classmethod
+    def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
         raise NotImplementedError
 
     @classmethod
@@ -263,12 +263,12 @@ class MangaReader(Site):
 
     @staticmethod
     def extract_images(html: bs4.BeautifulSoup) -> Iterable[FileDownload]:
-        img = html.find(id='img')
-        url = img['src']
-        extension = os.path.splitext(url)[1]
-        chapter = pathlib.Path(html.find(id='mangainfo').h1.string)
-        filename = chapter / (img['alt'] + extension)
-        yield FileDownload(url, filename)
+        if img := html.find("img", id='img'):
+            url = img['src']
+            extension = os.path.splitext(url)[1]
+            chapter = pathlib.Path(html.find(id='mangainfo').h1.string)
+            filename = chapter / (img['alt'] + extension)
+            yield FileDownload(url, filename)
 
     @classmethod
     def extract_pages(cls, html: bs4.BeautifulSoup) -> Iterable[PageDownload]:
