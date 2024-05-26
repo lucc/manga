@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <style>
+    img { align: middle; }
+    nav {
+      position: fixed;
+      left: 0;
+      top: 0;
+    }
+    nav > div {
+      overflow-y: auto;
+    }
+    </style>
+    <script type="module">
+    const images = await fetch("/images").then((res) => {
+      if (res.ok) {
+	return res.json()
+      }
+    })
+
+    const main = document.getElementsByTagName("center")[0]
+    const nav = document.getElementsByTagName("nav")[0].firstElementChild
+
+    images.forEach((file, idx) => {
+      const img = document.createElement("img")
+      img.setAttribute("src", file)
+      img.setAttribute("id", file)
+      if (idx == 10) {
+	//sleep(5)
+      } else if (idx > 10) {
+	img.setAttribute("loading", "lazy")
+      }
+      main.appendChild(img)
+      const link = document.createElement("a")
+      link.setAttribute("href", "#"+file)
+      link.innerText = file
+      const div = document.createElement("div")
+      div.appendChild(link)
+      nav.appendChild(div)
+    })
+    </script>
+    <title>Read manga</title>
+  </head>
+  <body>
+    <noscript>You need javascript to view this page.</noscript>
+    <nav><div></div></nav>
+    <center></center>
+  </body>
+</html>
