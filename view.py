@@ -41,11 +41,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
     def list_images(self) -> None:
-        p = Path()
-        gen = chain(p.glob("**/*.JPEG"), p.glob("**/*.JPG"),
-                    p.glob("**/*.jpeg"), p.glob("**/*.jpg"))
-        files = sorted(str(f) for f in gen)
-        s = json.dumps(files)
+        s = json.dumps(self.find_images())
         b = bytes(s, "UTF-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
