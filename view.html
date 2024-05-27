@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <style>
-    img { align: middle; }
+    img { align: middle; display: block; }
     nav {
       position: fixed;
       left: 0;
@@ -12,6 +12,7 @@
     }
     nav > div {
       overflow-y: auto;
+      display: none;
     }
     </style>
     <script type="module">
@@ -22,7 +23,7 @@
     })
 
     const main = document.getElementsByTagName("center")[0]
-    const nav = document.getElementsByTagName("nav")[0].firstElementChild
+    const nav = document.getElementsByTagName("nav")[0].lastElementChild
 
     images.forEach((file, idx) => {
       const img = document.createElement("img")
@@ -30,23 +31,36 @@
       img.setAttribute("id", file)
       if (idx == 10) {
 	//sleep(5)
-      } else if (idx > 10) {
+      } else if (idx > 5) {
 	img.setAttribute("loading", "lazy")
       }
       main.appendChild(img)
+    })
+
+    const grouped = Object.groupBy(images, (img) => img.split("/")[0])
+    for (let sec in grouped) {
       const link = document.createElement("a")
-      link.setAttribute("href", "#"+file)
-      link.innerText = file
+      link.setAttribute("href", "#"+grouped[sec][0])
+      link.innerText = sec
       const div = document.createElement("div")
       div.appendChild(link)
       nav.appendChild(div)
-    })
+    }
+    document.getElementsByTagName("button")[0].addEventListener(
+      "click",
+      () => {
+	nav.style.display = nav.style.display == "none" ? "block" : "none"
+      }
+    )
     </script>
     <title>Read manga</title>
   </head>
   <body>
     <noscript>You need javascript to view this page.</noscript>
-    <nav><div></div></nav>
+    <nav>
+      <button>Menu</button>
+      <div></div>
+    </nav>
     <center></center>
   </body>
 </html>
