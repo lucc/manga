@@ -7,7 +7,9 @@ from itertools import chain
 import json
 import os
 from pathlib import Path
+import threading
 from typing import Callable
+import webbrowser
 
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -58,6 +60,9 @@ def main() -> None:
 
     # change the current working directory as the http request handler uses it
     os.chdir(args.folder)
+
+    threading.Timer(1, webbrowser.open,
+                    args=[f"http://localhost:{args.port}/"]).start()
 
     with http.server.ThreadingHTTPServer(("", args.port), RequestHandler) as server:
         server.serve_forever()
