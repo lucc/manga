@@ -22,11 +22,7 @@
     }
     </style>
     <script type="module">
-    const images = await fetch("/images").then((res) => {
-      if (res.ok) {
-	return res.json()
-      }
-    })
+    const images = await fetch("/images").then(r => r.json())
 
     const main = document.getElementsByTagName("center")[0]
     const nav = document.getElementsByTagName("nav")[0].lastElementChild
@@ -44,10 +40,10 @@
     })
 
     const grouped = Object.groupBy(images, (img) => img.split("/")[0])
-    for (let sec in grouped) {
+    for (let section in grouped) {
       const link = document.createElement("a")
-      link.setAttribute("href", "#"+grouped[sec][0])
-      link.innerText = sec
+      link.setAttribute("href", "#"+grouped[section][0])
+      link.innerText = section
       const div = document.createElement("div")
       div.appendChild(link)
       nav.appendChild(div)
