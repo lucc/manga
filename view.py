@@ -3,7 +3,7 @@
 import argparse
 from http import HTTPStatus
 import http.server
-from itertools import chain
+from itertools import chain, groupby
 import json
 import os
 from pathlib import Path
@@ -23,7 +23,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def routes(self, path: str) -> Callable | None:
         return {
             "/": self.handle_root,
-            "/images": self.list_images,
+            "/data": self.handle_data,
         }.get(path)
 
     def handle_root(self) -> None:
@@ -35,14 +35,18 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.copyfile(f, self.wfile)
 
-    def find_images(self) -> list[str]:
+    def find_images(self) -> dict[str, list[str]]:
         p = Path()
         gen = chain(p.glob("**/*.JPEG"), p.glob("**/*.JPG"),
                     p.glob("**/*.jpeg"), p.glob("**/*.jpg"))
-        return sorted(str(f) for f in gen)
+        groups = groupby(sorted(str(f) for f in gen), lambda f: f.split("/")[0])
+        data = {}
+        for section, images in groups:
+            data[section] = list(images)
+        return data
 
 
-    def list_images(self) -> None:
+    def handle_data(self) -> None:
         s = json.dumps(self.find_images())
         b = bytes(s, "UTF-8")
         self.send_response(HTTPStatus.OK)
