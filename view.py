@@ -60,13 +60,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("folder", type=Path)
     parser.add_argument("--port", default=8080, type=int)
+    parser.add_argument("--open", action="store_true")
     args = parser.parse_args()
 
     # change the current working directory as the http request handler uses it
     os.chdir(args.folder)
 
-    threading.Timer(1, webbrowser.open,
-                    args=[f"http://localhost:{args.port}/"]).start()
+    if args.open:
+        threading.Timer(1, webbrowser.open,
+                        args=[f"http://localhost:{args.port}/"]).start()
 
     with http.server.ThreadingHTTPServer(("", args.port), RequestHandler) as server:
         server.serve_forever()
