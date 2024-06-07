@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width" />
     <style>
     img { align: middle; display: block; min-height: 50px; }
+    main { align: middle; }
+    a { display: block; margin-right: 2px; }
+    h4 { float: right; position: sticky; top: 10px; }
     nav {
       position: fixed;
       left: 5px;
@@ -28,25 +31,26 @@
     const nav = document.getElementsByTagName("nav")[0].lastElementChild
 
     let count = 0
-    for (let section in images) {
+    for (let chapter in images) {
       const link = document.createElement("a")
-      link.setAttribute("href", "#"+section)
-      link.innerText = section
-      const div = document.createElement("div")
-      div.appendChild(link)
-      nav.appendChild(div)
-      const anchor = document.createElement("div")
-      anchor.id = section
-      main.appendChild(anchor)
-      images[section].forEach(file => {
+      link.setAttribute("href", "#"+chapter)
+      link.innerText = chapter
+      nav.appendChild(link)
+      const section = document.createElement("section")
+      section.id = chapter
+      const label = document.createElement("h4")
+      label.innerText = chapter
+      section.appendChild(label)
+      images[chapter].forEach(file => {
 	const img = document.createElement("img")
 	img.setAttribute("src", file)
 	if (count > 5) {
 	  img.setAttribute("loading", "lazy")
 	}
 	count++
-	main.appendChild(img)
+	section.appendChild(img)
       })
+      main.appendChild(section)
     }
     </script>
     <title>Read manga</title>
