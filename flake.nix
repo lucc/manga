@@ -23,6 +23,15 @@
         in [ pythonPackages.setuptools ] ++ packages;
         checkPhase = "python -m unittest";
       };
+      view = pkgs.runCommand "view" {
+        buildInputs = [ pkgs.python3 ];
+      } ''
+        mkdir -p $out/bin
+        cp ${self}/view.py $out/bin/view
+        cp ${self}/view.html $out/
+        sed -i '/template = /s/parent/parent.parent/' $out/bin/view
+        patchShebangs $out/bin/view
+      '';
 
       download-all = pkgs.writeShellScriptBin "download-all" ''
         for f in downloads/*/state.pickle; do
