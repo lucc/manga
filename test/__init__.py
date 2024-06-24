@@ -3,8 +3,8 @@ import unittest
 
 import bs4
 
-from comic_dl import PageDownload, FileDownload
-from comic_dl import Islieb, MangaReader, MangaTown, Xkcd
+from comic_dl.download import PageDownload, FileDownload
+from comic_dl.download import Islieb, MangaReader, MangaTown, Xkcd
 
 
 def load_html(name):

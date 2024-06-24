@@ -1,12 +1,9 @@
-#!python
-
 """
 A crawler/download script to download mangas and other comics from some websites.
 """
 
 import argparse
 import asyncio
-from importlib.metadata import version
 import logging
 import os.path
 import pathlib
@@ -21,8 +18,6 @@ import bs4
 import urllib3.exceptions
 
 
-NAME = 'comic-dl'
-VERSION = version(NAME)
 T = TypeVar("T")
 
 
@@ -359,28 +354,3 @@ async def start(args: argparse.Namespace) -> None:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
     crawler.dump()
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog=NAME, description="Download manga from some websites")
-    parser.add_argument(
-        "-d", "--directory", help="the output directory to save files",
-        default=pathlib.Path(), type=pathlib.Path)
-    parser.add_argument("--debug", default=logging.INFO, action="store_const",
-                        const=logging.DEBUG)
-    parser.add_argument('--version', action='version', version=VERSION)
-    parser.add_argument("--jobs", "-j", type=int, default=3,
-                        help="number of concurent downloads")
-    target = parser.add_mutually_exclusive_group(required=True)
-    target.add_argument("--resume", action="store_true",
-                        help="resume downloading from a state file")
-    target.add_argument("url", nargs="?", help="the url to start downloading")
-    args = parser.parse_args()
-    logging.basicConfig(level=args.debug)
-    logging.debug("Command line arguments: %s", args)
-    asyncio.run(start(args))
-
-
-if __name__ == "__main__":
-    main()

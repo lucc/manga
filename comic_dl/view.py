@@ -56,13 +56,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(b)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("folder", type=Path)
-    parser.add_argument("--port", default=8080, type=int)
-    parser.add_argument("--open", action="store_true")
-    args = parser.parse_args()
-
+def run_server(args: argparse.Namespace) -> None:
     # change the current working directory as the http request handler uses it
     os.chdir(args.folder)
 
@@ -72,7 +66,3 @@ def main() -> None:
 
     with http.server.ThreadingHTTPServer(("", args.port), RequestHandler) as server:
         server.serve_forever()
-
-
-if __name__ == "__main__":
-    main()

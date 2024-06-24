@@ -20,7 +20,7 @@
         propagatedBuildInputs = let
           names = pyproject.dependencies;
           packages = builtins.attrValues (pkgs.lib.attrsets.getAttrs names pythonPackages);
-        in [ pythonPackages.setuptools ] ++ packages;
+        in [ pythonPackages.setuptools pythonPackages.setuptools-scm ] ++ packages;
         checkPhase = "python -m unittest";
       };
       view = pkgs.runCommand "view" {
