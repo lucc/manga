@@ -147,7 +147,8 @@ class Site:
                 return subcls.find_crawler(url)
             except NotImplementedError:
                 pass
-        raise NotImplementedError(f"No crawler available for {url}")
+        host = urllib.parse.urlsplit(url).netloc or url
+        raise NotImplementedError(f"No crawler available for {host}")
 
     async def start(self, id: int) -> None:
         logging.debug("Setting up worker %i", id)
@@ -335,14 +336,15 @@ async def start(args: argparse.Namespace) -> None:
     async with aiohttp.ClientSession() as session:
         try:
             crawler = await Site.load(args.directory, session)
+        except NotImplementedError as err:
+            sys.exit(f"{err}, resumed from {args.directory}")
         except FileNotFoundError:
             if args.resume:
                 sys.exit("No statefile found to resume from.")
             try:
                 Crawler = Site.find_crawler(args.url)
-            except NotImplementedError:
-                sys.exit("No crawler available for {}.".format(
-                    urllib.parse.urlsplit(args.url).hostname or args.url))
+            except NotImplementedError as err:
+                sys.exit(err)
             queue: Queue[Job] = Queue()
             await queue.put(PageDownload(args.url))
             crawler = Crawler(queue, args.directory, session)
