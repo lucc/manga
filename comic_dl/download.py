@@ -147,7 +147,7 @@ class Site:
                 return subcls.find_crawler(url)
             except NotImplementedError:
                 pass
-        raise NotImplementedError
+        raise NotImplementedError(f"No crawler available for {url}")
 
     async def start(self, id: int) -> None:
         logging.debug("Setting up worker %i", id)
