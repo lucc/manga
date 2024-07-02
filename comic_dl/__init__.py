@@ -1,4 +1,4 @@
-#!python
+#!python3
 
 """
 A crawler/download script to download mangas and other comics from some websites.
@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 # needed for the unpickeling?
-from .download import start, FileDownload, PageDownload
+from .download import resume, start, FileDownload, PageDownload
 from .view import run_server
 
 
@@ -28,16 +28,21 @@ def main() -> None:
     subparsers = parser.add_subparsers()
 
     dl = subparsers.add_parser("download")
-    dl.set_defaults(func=lambda args: asyncio.run(start(args)))
+    dl.set_defaults(func=lambda args:
+        asyncio.run(start(args.url, args.directory, args.jobs)))
     dl.add_argument(
         "-d", "--directory", help="the output directory to save files",
         default=Path(), type=Path)
     dl.add_argument("--jobs", "-j", type=int, default=3,
-                        help="number of concurent downloads")
-    target = dl.add_mutually_exclusive_group(required=True)
-    target.add_argument("--resume", action="store_true",
-                        help="resume downloading from a state file")
-    target.add_argument("url", nargs="?", help="the url to start downloading")
+                    help="number of concurent downloads")
+    dl.add_argument("url", help="the url to start downloading")
+
+    r = subparsers.add_parser("resume")
+    r.set_defaults(func=lambda args: asyncio.run(resume(args.target, args.jobs)))
+    r.add_argument("--jobs", "-j", type=int, default=3,
+                   help="number of concurent downloads")
+    r.add_argument("target", type=Path, nargs="+",
+                        help="directories and state files to resume from")
 
     view = subparsers.add_parser("view")
     view.set_defaults(func=run_server)

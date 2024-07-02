@@ -150,7 +150,17 @@ class Site:
         host = urllib.parse.urlsplit(url).netloc or url
         raise NotImplementedError(f"No crawler available for {host}")
 
-    async def start(self, id: int) -> None:
+    async def start(self, jobs: int) -> None:
+        # Set up the event loop and run the tasks
+        logging.debug("setting up task pool")
+        tasks = [asyncio.create_task(self.run(i)) for i in range(jobs)]
+        await self.queue.join()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.dump()
+
+    async def run(self, id: int) -> None:
         logging.debug("Setting up worker %i", id)
         while True:
             logging.debug("Worker %s: looking for a job ...", id)
@@ -332,27 +342,30 @@ class Xkcd(Site):
             yield PageDownload("https://" + cls.DOMAIN + "/")
 
 
-async def start(args: argparse.Namespace) -> None:
+async def start(url: str, directory: pathlib.Path, jobs: int) -> None:
+    if (directory / "state.pickle").exists():
+        sys.exit(f"A state file exists in {directory}, "
+                 "please use 'resume' instead of 'download'")
     async with aiohttp.ClientSession() as session:
         try:
-            crawler = await Site.load(args.directory, session)
+            Crawler = Site.find_crawler(url)
         except NotImplementedError as err:
-            sys.exit(f"{err}, resumed from {args.directory}")
-        except FileNotFoundError:
-            if args.resume:
-                sys.exit("No statefile found to resume from.")
+            sys.exit(err)
+        queue: Queue[Job] = Queue()
+        await queue.put(PageDownload(url))
+        crawler = Crawler(queue, directory, session)
+        await crawler.start(jobs)
+
+
+async def resume(targets: list[pathlib.Path], jobs: int) -> None:
+    async with aiohttp.ClientSession() as session:
+        for target in targets:
             try:
-                Crawler = Site.find_crawler(args.url)
+                crawler = await Site.load(target, session)
             except NotImplementedError as err:
-                sys.exit(err)
-            queue: Queue[Job] = Queue()
-            await queue.put(PageDownload(args.url))
-            crawler = Crawler(queue, args.directory, session)
-        # Set up the event loop and run the tasks
-        logging.debug("setting up task pool")
-        tasks = [asyncio.create_task(crawler.start(i)) for i in range(args.jobs)]
-        await crawler.queue.join()
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-    crawler.dump()
+                logging.error("%s, resumed from %s", err, target)
+                continue
+            except FileNotFoundError:
+                logging.error("No state file found in %s to resume from", target)
+                continue
+            await crawler.start(jobs)
