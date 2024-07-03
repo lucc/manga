@@ -51,7 +51,7 @@ def main() -> None:
     view.add_argument("--open", action="store_true")
 
     args = parser.parse_args()
-    logging.basicConfig(level=args.debug)
+    logging.basicConfig(level=args.debug, format="%(levelname)s:\t%(message)s")
     logging.debug("Command line arguments: %s", args)
 
     if "func" not in args:
