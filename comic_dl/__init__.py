@@ -1,22 +1,22 @@
-#!python3
-
 """
 A crawler/download script to download mangas and other comics from some websites.
 """
 
 import argparse
 import asyncio
-from importlib.metadata import version
+from importlib.metadata import version, PackageNotFoundError
 import logging
 from pathlib import Path
 
-# needed for the unpickeling?
-from .download import resume, start, FileDownload, PageDownload
+from .download import resume, start
 from .view import run_server
 
 
 NAME = 'comic-dl'
-VERSION = version(NAME)
+try:
+    VERSION = version(NAME)
+except PackageNotFoundError:
+    VERSION = "dev"
 
 
 def main() -> None:
@@ -54,8 +54,6 @@ def main() -> None:
     logging.basicConfig(level=args.debug)
     logging.debug("Command line arguments: %s", args)
 
+    if "func" not in args:
+        parser.error("No command given.")
     args.func(args)
-
-
-if __name__ == "__main__":
-    main()
