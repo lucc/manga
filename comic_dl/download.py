@@ -2,7 +2,6 @@
 A crawler/download script to download mangas and other comics from some websites.
 """
 
-import argparse
 import asyncio
 import logging
 import os.path
@@ -53,7 +52,7 @@ class FileDownload(Job):
 
 
 class Queue(Generic[T]):
-    """An asynchrounous queue with duplicate detection.
+    """An asynchronous queue with duplicate detection.
 
     The queue caches items that are added and ignores them if they are added
     again.  The interface should mostly be identcal to asyncio.Queue.

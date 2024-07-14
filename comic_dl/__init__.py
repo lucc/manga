@@ -34,13 +34,13 @@ def main() -> None:
         "-d", "--directory", help="the output directory to save files",
         default=Path(), type=Path)
     dl.add_argument("--jobs", "-j", type=int, default=3,
-                    help="number of concurent downloads")
+                    help="number of concurrent downloads")
     dl.add_argument("url", help="the url to start downloading")
 
     r = subparsers.add_parser("resume")
     r.set_defaults(func=lambda args: asyncio.run(resume(args.target, args.jobs)))
     r.add_argument("--jobs", "-j", type=int, default=3,
-                   help="number of concurent downloads")
+                   help="number of concurrent downloads")
     r.add_argument("target", type=Path, nargs="+",
                         help="directories and state files to resume from")
 
