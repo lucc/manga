@@ -1,68 +1,58 @@
 #!/usr/bin/env python
 
 import argparse
-from http import HTTPStatus
-import http.server
+import functools
 from itertools import chain, groupby
-import json
-import os
 from pathlib import Path
 import threading
-from typing import Callable
 import webbrowser
 
+from flask import Flask, render_template, send_from_directory
+from jinja2 import Template
 
-class RequestHandler(http.server.SimpleHTTPRequestHandler):
 
-    def do_GET(self) -> None:
-        if handler := self.routes(self.path):
-            handler()
-        else:
-            super().do_GET()
+@functools.cache
+def get_template() -> Template:
+    with (Path(__file__).parent / "view.html").open() as f:
+        return Template(f.read())
 
-    def routes(self, path: str) -> Callable | None:
-        return {
-            "/": self.handle_root,
-            "/data": self.handle_data,
-        }.get(path)
 
-    def handle_root(self) -> None:
-        template = Path(__file__).parent / "view.html"
-        with template.open("rb") as f:
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html")
-            self.send_header("Content-Length", str(template.stat().st_size))
-            self.end_headers()
-            self.copyfile(f, self.wfile)
+def run_server(args: argparse.Namespace) -> None:
+    folder: Path = args.folder
+    # find all state files below the given directory, these are the root
+    # directories of mangas/comics to view
+    dirs = [d.parent.relative_to(folder) for d in folder.glob("**/state.pickle")]
 
-    def find_images(self) -> dict[str, list[str]]:
-        p = Path()
+    def comic(dir: str = "") -> str:
+        return render_template(get_template(), comic=dir)
+
+    def data(dir: str = "") -> dict:
+        p = folder / dir
         gen = chain(p.glob("**/*.JPEG"), p.glob("**/*.JPG"),
                     p.glob("**/*.jpeg"), p.glob("**/*.jpg"))
-        groups = groupby(sorted(str(f) for f in gen), lambda f: f.split("/")[0])
+        groups = groupby(sorted(str(f.relative_to(folder)) for f in gen), lambda f: f.split("/")[1])
         data = {}
         for section, images in groups:
             data[section] = list(images)
         return data
 
+    def images(path: str):
+        return send_from_directory(folder, path)
 
-    def handle_data(self) -> None:
-        s = json.dumps(self.find_images())
-        b = bytes(s, "UTF-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
+    app = Flask("comic-viewer")
 
-
-def run_server(args: argparse.Namespace) -> None:
-    # change the current working directory as the http request handler uses it
-    os.chdir(args.folder)
+    if len(dirs) == 1 and dirs[0] == Path("."):
+        app.route("/")(comic)
+        app.route("/data")(data)
+    else:
+        @app.route("/")
+        def root() -> str:
+            return "".join(f"<p><a href='/view/{dir}'>{dir}</a></p>" for dir in dirs)
+        app.route("/view/<dir>")(comic)
+        app.route("/data/<dir>")(data)
+    app.route("/view/<path:path>")(images)
 
     if args.open:
         threading.Timer(1, webbrowser.open,
                         args=[f"http://localhost:{args.port}/"]).start()
-
-    with http.server.ThreadingHTTPServer(("", args.port), RequestHandler) as server:
-        server.serve_forever()
+    app.run(port=args.port)

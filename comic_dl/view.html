@@ -25,7 +25,7 @@
     button { width: 7em; }
     </style>
     <script type="module">
-    const images = await fetch("/data").then(r => r.json())
+    const images = await fetch("/data/{{ comic }}").then(r => r.json())
 
     const main = document.getElementsByTagName("center")[0]
     const nav = document.getElementsByTagName("nav")[0].lastElementChild

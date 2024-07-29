@@ -5,6 +5,7 @@ version = "0.6-dev"
 dependencies = [
     "aiohttp",
     "beautifulsoup4",
+    "flask",
     "lxml",
     "urllib3",
 ]
