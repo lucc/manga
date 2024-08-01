@@ -29,7 +29,7 @@ def main() -> None:
 
     dl = subparsers.add_parser("download")
     dl.set_defaults(func=lambda args:
-        asyncio.run(start(args.url, args.directory, args.jobs)))
+                    asyncio.run(start(args.url, args.directory, args.jobs)))
     dl.add_argument(
         "-d", "--directory", help="the output directory to save files",
         default=Path(), type=Path)
@@ -42,7 +42,7 @@ def main() -> None:
     r.add_argument("--jobs", "-j", type=int, default=3,
                    help="number of concurrent downloads")
     r.add_argument("target", type=Path, nargs="+",
-                        help="directories and state files to resume from")
+                   help="directories and state files to resume from")
 
     view = subparsers.add_parser("view")
     view.set_defaults(func=run_server)

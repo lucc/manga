@@ -101,7 +101,7 @@ class StaticParserTests(unittest.TestCase):
         expected = [FileDownload("https://zjcdn.mangahere.org/store/manga"
                                  f"/31587/051.0/compressed/h00{i}.jpg",
                                  pathlib.Path(f"051.0/h00{i}.jpg"))
-            for i in range(5)]
+                    for i in range(5)]
         actual = list(MangaTown.extract_images(html))
         self.assertListEqual(actual, expected)
         expected = 559

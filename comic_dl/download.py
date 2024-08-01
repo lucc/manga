@@ -58,7 +58,7 @@ class Queue(Generic[T]):
     again.  The interface should mostly be identcal to asyncio.Queue.
     """
 
-    def __init__(self, state: dict[T, bool]|None = None) -> None:
+    def __init__(self, state: dict[T, bool] | None = None) -> None:
         """Initialize the queue optionally filling some entries
 
         :param state: an optional dictionary of entries to put in the queue.
@@ -79,7 +79,7 @@ class Queue(Generic[T]):
         return await self._queue.put(item)
 
     async def get(self) -> T:
-            return await self._queue.get()
+        return await self._queue.get()
 
     async def join(self) -> None:
         await self._queue.join()  # TODO
@@ -315,7 +315,7 @@ class MangaTown(Site):
         :returns: if it is the main image tag
         """
         return tag.name == "img" and ("image" in tag.get("class", []) or
-            tag.get("id") == "image")
+                                      tag.get("id") == "image")
 
 
 class Xkcd(Site):
