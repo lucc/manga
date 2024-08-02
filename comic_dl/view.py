@@ -7,7 +7,7 @@ from pathlib import Path
 import threading
 import webbrowser
 
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, Response, render_template, send_from_directory
 from jinja2 import Template
 
 
@@ -26,7 +26,7 @@ def run_server(args: argparse.Namespace) -> None:
     def comic(dir: str = "") -> str:
         return render_template(get_template(), comic=dir)
 
-    def data(dir: str = "") -> dict:
+    def data(dir: str = "") -> dict[str, list[str]]:
         p = folder / dir
         gen = chain(p.glob("**/*.JPEG"), p.glob("**/*.JPG"),
                     p.glob("**/*.jpeg"), p.glob("**/*.jpg"))
@@ -36,7 +36,7 @@ def run_server(args: argparse.Namespace) -> None:
             data[section] = list(images)
         return data
 
-    def images(path: str):
+    def images(path: str) -> Response:
         return send_from_directory(folder, path)
 
     app = Flask("comic-viewer")

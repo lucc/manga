@@ -308,7 +308,7 @@ class MangaTown(Site):
             yield PageDownload("https://" + cls.DOMAIN + option["value"])
 
     @staticmethod
-    def match_image_tag(tag: bs4.Tag):
+    def match_image_tag(tag: bs4.Tag) -> bool:
         """Match an image tag for the main image in mangatown html page
 
         :tag: the tag to check
@@ -349,7 +349,7 @@ async def start(url: str, directory: pathlib.Path, jobs: int) -> None:
         try:
             Crawler = Site.find_crawler(url)
         except NotImplementedError as err:
-            sys.exit(err)
+            sys.exit(str(err))
         queue: Queue[Job] = Queue()
         await queue.put(PageDownload(url))
         crawler = Crawler(queue, directory, session)
