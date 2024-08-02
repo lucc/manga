@@ -31,5 +31,15 @@
         done
       '';
     };
+
+    checks.x86_64-linux = {
+      mypy = pkgs.runCommandLocal "mypy" {
+        buildInputs = [ (pkgs.python3.withPackages (_: typing-deps)) ];
+      } "cd ${self} && mypy && touch $out";
+      pycodestyle = pkgs.runCommandLocal "pycodestyle" {} ''
+        ${pkgs.python3Packages.pycodestyle}/bin/pycodestyle ${self}
+        touch $out
+      '';
+    };
   };
 }
