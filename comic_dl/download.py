@@ -359,6 +359,9 @@ async def start(url: str, directory: pathlib.Path, jobs: int) -> None:
 async def resume(targets: list[pathlib.Path], jobs: int) -> None:
     async with aiohttp.ClientSession() as session:
         for target in targets:
+            if (target / "state.pickle.done").exists():
+                logging.info("Comic in %s is fully downloaded", target)
+                continue
             try:
                 crawler = await Site.load(target, session)
             except NotImplementedError as err:

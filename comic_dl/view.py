@@ -21,7 +21,7 @@ def run_server(args: argparse.Namespace) -> None:
     folder: Path = args.folder
     # find all state files below the given directory, these are the root
     # directories of mangas/comics to view
-    dirs = sorted(d.parent.relative_to(folder) for d in folder.glob("**/state.pickle"))
+    dirs = sorted(d.parent.relative_to(folder) for d in folder.glob("**/state.pickle*"))
 
     def comic(dir: str = "") -> str:
         return render_template(get_template(), comic=dir)
