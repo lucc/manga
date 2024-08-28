@@ -395,16 +395,17 @@ async def start(url: str, directory: pathlib.Path, jobs: int) -> None:
 
 async def resume(targets: list[pathlib.Path], jobs: int) -> None:
     async with aiohttp.ClientSession() as session:
+        tasks = []
         for target in targets:
             if (target / "state.pickle.done").exists():
                 logging.info("Comic in %s is fully downloaded", target)
                 continue
             try:
                 crawler = await Site.load(target, session)
+                tasks.append(crawler.start(jobs))
             except NotImplementedError as err:
                 logging.error("%s, resumed from %s", err, target)
-                continue
             except FileNotFoundError:
                 logging.error("No state file found in %s to resume from", target)
-                continue
-            await crawler.start(jobs)
+        logging.debug("Starting the crawlers ...")
+        await asyncio.gather(*tasks, return_exceptions=True)
