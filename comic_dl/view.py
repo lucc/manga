@@ -21,7 +21,8 @@ def run_server(args: argparse.Namespace) -> None:
     folder: Path = args.folder
     # find all state files below the given directory, these are the root
     # directories of mangas/comics to view
-    dirs = sorted(d.parent.relative_to(folder) for d in folder.glob("**/state.pickle*"))
+    dirs = sorted(d.parent.relative_to(folder)
+                  for d in folder.glob("**/state.pickle*"))
 
     def comic(dir: str = "") -> str:
         return render_template(get_template(), comic=dir)
@@ -30,7 +31,8 @@ def run_server(args: argparse.Namespace) -> None:
         p = folder / dir
         gen = chain(p.glob("**/*.JPEG"), p.glob("**/*.JPG"),
                     p.glob("**/*.jpeg"), p.glob("**/*.jpg"))
-        groups = groupby(sorted(str(f.relative_to(folder)) for f in gen), lambda f: f.split("/")[1])
+        groups = groupby(sorted(str(f.relative_to(folder)) for f in gen),
+                         lambda f: f.split("/")[1])
         data = {}
         for section, images in groups:
             data[section] = list(images)
@@ -47,7 +49,8 @@ def run_server(args: argparse.Namespace) -> None:
     else:
         @app.route("/")
         def root() -> str:
-            return "".join(f"<p><a href='/view/{dir}'>{dir}</a></p>" for dir in dirs)
+            return "".join(f"<p><a href='/view/{dir}'>{dir}</a></p>"
+                           for dir in dirs)
         app.route("/view/<dir>")(comic)
         app.route("/data/<dir>")(data)
     app.route("/view/<path:path>")(images)

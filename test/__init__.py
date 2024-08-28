@@ -114,7 +114,7 @@ class StaticParserTests(unittest.TestCase):
             'https://pic2.taadd.com/comics/pic4/1/35521/487056/'
             'dd146c8b92b70b918ddc8a40b27b1f50.jpg',
             pathlib.Path('001 Battle Angel Alita Last Order 1/'
-                '01 Battle Angel Alita Last Order 1.jpg'))]
+                         '01 Battle Angel Alita Last Order 1.jpg'))]
         actual = list(Taadd.extract_images(html))
         self.assertListEqual(actual, expected)
         expected = [
