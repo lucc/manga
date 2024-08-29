@@ -9,6 +9,7 @@ dependencies = [
     "lxml",
     "urllib3",
 ]
+requires-python = ">=3.12"
 
 [project.scripts]
 comic-dl = "comic_dl:main"

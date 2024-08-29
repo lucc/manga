@@ -6,7 +6,7 @@
   outputs = { self, nixpkgs }:
   let
     pkgs = nixpkgs.legacyPackages.x86_64-linux;
-    pyPkgs = pkgs.python3Packages;
+    pyPkgs = pkgs.python312Packages;
     pyproject = (pkgs.lib.trivial.importTOML ./pyproject.toml).project;
     names = pyproject.dependencies;
     packages = builtins.attrValues (pkgs.lib.attrsets.getAttrs names pyPkgs);
@@ -25,10 +25,10 @@
 
     checks.x86_64-linux = {
       mypy = pkgs.runCommandLocal "mypy" {
-        buildInputs = [ (pkgs.python3.withPackages (_: typing-deps)) ];
+        buildInputs = [ (pkgs.python312.withPackages (_: typing-deps)) ];
       } "cd ${self} && mypy && touch $out";
       pycodestyle = pkgs.runCommandLocal "pycodestyle" {} ''
-        ${pkgs.python3Packages.pycodestyle}/bin/pycodestyle ${self}
+        ${pkgs.python312Packages.pycodestyle}/bin/pycodestyle ${self}
         touch $out
       '';
     };

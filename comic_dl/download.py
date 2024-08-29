@@ -3,12 +3,13 @@ A crawler/download script to download mangas and other comics from some websites
 """
 
 import asyncio
+from dataclasses import dataclass
 import logging
 import os.path
 import pathlib
 import pickle
 import sys
-from typing import Iterable, Generic, Type, TypeVar
+from typing import Iterable, Type
 import urllib.error
 import urllib.parse
 
@@ -17,41 +18,22 @@ import bs4
 import urllib3.exceptions
 
 
-T = TypeVar("T")
-
-
 class Job:
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, type(self)) and self.__dict__ == other.__dict__
+    pass
 
 
+@dataclass(frozen=True)
 class PageDownload(Job):
-
-    def __init__(self, url: str):
-        self.url = url
-
-    def __str__(self) -> str:
-        return "PageDownload({})".format(self.url)
-
-    def __hash__(self) -> int:
-        return hash((self.__class__, self.url))
+    url: str
 
 
+@dataclass(frozen=True)
 class FileDownload(Job):
-
-    def __init__(self, url: str, path: pathlib.Path):
-        self.url = url
-        self.path = path
-
-    def __str__(self) -> str:
-        return "FileDownload(url={}, path={})".format(self.url, self.path)
-
-    def __hash__(self) -> int:
-        return hash((self.__class__, self.url, self.path))
+    url: str
+    path: pathlib.Path
 
 
-class Queue(Generic[T]):
+class Queue[T]:
     """An asynchronous queue with duplicate detection.
 
     The queue caches items that are added and ignores them if they are added

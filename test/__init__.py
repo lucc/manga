@@ -37,6 +37,22 @@ class StaticJobTests(unittest.TestCase):
         p2 = pathlib.Path("/")
         self.assertNotEqual(FileDownload("foo", p1), FileDownload("foo", p2))
 
+    def test_difference_and_equality_of_page_dl_hashes(self):
+        page1 = PageDownload("foo")
+        page1b = PageDownload("foo")
+        page2 = PageDownload("bar")
+        self.assertIsNot(page1, page1b)
+        self.assertEqual(hash(page1), hash(page1b))
+        self.assertNotEqual(hash(page1), hash(page2))
+
+    def test_difference_and_equality_of_file_dl_hashes(self):
+        page1 = FileDownload("foo", pathlib.Path("a"))
+        page1b = FileDownload("foo", pathlib.Path("a"))
+        page2 = FileDownload("bar", pathlib.Path("b"))
+        self.assertIsNot(page1, page1b)
+        self.assertEqual(hash(page1), hash(page1b))
+        self.assertNotEqual(hash(page1), hash(page2))
+
 
 class StaticParserTests(unittest.TestCase):
 
