@@ -3,6 +3,7 @@
 import argparse
 import functools
 from itertools import chain, groupby
+import logging
 from pathlib import Path
 import threading
 import webbrowser
@@ -21,8 +22,9 @@ def run_server(args: argparse.Namespace) -> None:
     folder: Path = args.folder
     # find all state files below the given directory, these are the root
     # directories of mangas/comics to view
-    dirs = sorted(d.parent.relative_to(folder)
-                  for d in folder.glob("**/state.pickle*"))
+    state_files = folder.glob("**/state.pickle*")
+    logging.debug("Found state files: %s", state_files)
+    dirs = sorted({d.parent.relative_to(folder) for d in state_files})
 
     def comic(dir: str = "") -> str:
         return render_template(get_template(), comic=dir)
