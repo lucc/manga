@@ -3,7 +3,7 @@ import unittest
 
 import bs4
 
-from comic_dl.download import PageDownload, FileDownload
+from comic_dl.download import ReadMangaBat, PageDownload, FileDownload
 from comic_dl.download import Islieb, MangaReader, MangaTown, Taadd, Xkcd
 
 
@@ -123,6 +123,21 @@ class StaticParserTests(unittest.TestCase):
         expected = 559
         actual = len(list(MangaTown.extract_pages(html)))
         self.assertEqual(actual, expected)
+
+    def test_readmangabat(self):
+        html = load_html('readmangabat.com.html')
+        actual = list(ReadMangaBat.extract_images(html))
+        self.assertEqual(len(actual), 35)
+        expected = FileDownload("https://v12.mkklcdnv6tempv4.com/img/tab_12/01/90/74/tw970431/vol_1_chapter_8/9-o.jpg", pathlib.Path("vol_1_chapter_8/9-o.jpg"))
+        self.assertEqual(actual[8], expected)
+        actual = list(ReadMangaBat.extract_pages(html))
+        self.assertEqual(len(actual), 19)
+        first = PageDownload("https://readmangabat.com/read-yb376320-chap-8.2")
+        second = PageDownload("https://readmangabat.com/read-yb376320-chap-7")
+        last = PageDownload("https://readmangabat.com/read-yb376320-chap-1")
+        self.assertEqual(actual[0], first)
+        self.assertEqual(actual[1], second)
+        self.assertEqual(actual[-1], last)
 
     def test_taadd(self):
         html = load_html("taadd.html")

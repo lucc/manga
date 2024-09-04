@@ -8,6 +8,7 @@ import logging
 import os.path
 import pathlib
 import pickle
+import re
 import sys
 from typing import Iterable, Type
 import urllib.error
@@ -298,6 +299,29 @@ class MangaTown(Site):
         """
         return tag.name == "img" and ("image" in tag.get("class", []) or
                                       tag.get("id") == "image")
+
+
+class ReadMangaBat(Site):
+    DOMAIN = "readmangabat.com"
+
+    @staticmethod
+    def extract_images(html:bs4.BeautifulSoup) -> Iterable[FileDownload]:
+        for img in html.find_all("img", class_="img-content"):
+            src = img["src"]
+            yield FileDownload(src, pathlib.Path(*src.split("/")[-2:]))
+
+    @staticmethod
+    def extract_pages(html: bs4.BeautifulSoup) ->Iterable[PageDownload]:
+        if next := html.find("a", class_="navi-change-chapter-btn-next"):
+            yield PageDownload(next["href"])
+        if prev := html.find("a", class_="navi-change-chapter-btn-prev"):
+            yield PageDownload(prev["href"])
+        if script := html.find("script", string=re.compile("navi_change_chapter_address")):
+            s = script.string.strip()
+            if match := re.match(r"""^\$navi_change_chapter_address\s*=\s*["']([^"']+)["']\s*\+\s*["']([^"']+)["'];$""", s):
+                base = match.group(1) + match.group(2)
+                for option in html.find("select", class_="navi-change-chapter").find_all("option"):
+                    yield PageDownload(base + option["data-c"])
 
 
 class Taadd(Site):
