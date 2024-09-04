@@ -88,6 +88,7 @@ class Queue[T]:
 class Site:
 
     DOMAIN: str
+    headers: dict[str, str] | None = None
 
     def __init__(self, queue: Queue[Job], directory: pathlib.Path, session: aiohttp.ClientSession):
         self._id = id
@@ -98,7 +99,7 @@ class Site:
     async def get(self, url: str) -> bytes:
         for _ in range(3):
             try:
-                async with self._session.get(url) as req:
+                async with self._session.get(url, headers=self.headers) as req:
                     req.raise_for_status()
                     return await req.read()
             except urllib3.exceptions.MaxRetryError as err:
@@ -303,6 +304,7 @@ class MangaTown(Site):
 
 class ReadMangaBat(Site):
     DOMAIN = "readmangabat.com"
+    headers = {"referer": f"https://{DOMAIN}/"}
 
     @staticmethod
     def extract_images(html:bs4.BeautifulSoup) -> Iterable[FileDownload]:
